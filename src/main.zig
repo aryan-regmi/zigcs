@@ -2,65 +2,13 @@ const std = @import("std");
 const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
+const Context = @import("context.zig").Context;
+const World = @import("world.zig").World;
 
-const System = *const fn (ctx: Context) anyerror!void;
-
-const Entity = usize;
-
-const World = struct {
-    const Self = @This();
-
-    num_entities: usize = 0,
-
-    fn spawnEntity(self: *Self) Entity {
-        const entity = self.num_entities;
-        self.num_entities += 1;
-        return entity;
-    }
-};
-
-const EntityBuilder = struct {
-    const Self = @This();
-
-    ctx: Context,
-
-    pub fn init(ctx: Context) Self {
-        return Self{ .ctx = ctx };
-    }
-
-    // TODO: Implement
-    pub fn with(self: Self, component: anytype) Self {
-        _ = component;
-        return self;
-    }
-
-    // TODO: Implement
-    pub fn build(self: Self) Entity {
-        self.ctx.world_mutex.lock();
-        var entity = self.ctx.world.*.spawnEntity();
-        self.ctx.world_mutex.unlock();
-
-        return entity;
-    }
-};
-
-const Context = struct {
-    const Self = @This();
-
-    world: *World,
-    world_mutex: *std.Thread.Mutex,
-
-    fn init(world: *World, mutex: *std.Thread.Mutex) Self {
-        return Self{ .world = world, .world_mutex = mutex };
-    }
-
-    pub fn spawn(self: Self) EntityBuilder {
-        return EntityBuilder.init(self);
-    }
-};
+pub const System = *const fn (ctx: Context) anyerror!void;
 
 // TODO: Add stages to run systems in!
-const App = struct {
+pub const App = struct {
     const Self = @This();
 
     allocator: Allocator,
