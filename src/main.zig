@@ -19,6 +19,25 @@ const World = struct {
     }
 };
 
+const EntityBuilder = struct {
+    const Self = @This();
+
+    ctx: *Context,
+
+    // TODO: Implement
+    pub fn with(self: Self, component: anytype) Self {
+        _ = component;
+        return self;
+    }
+
+    // TODO: Implement
+    pub fn build(self: Self) Entity {
+        var entity = self.ctx.world.*.spawnEntity();
+
+        return entity;
+    }
+};
+
 const Context = struct {
     const Self = @This();
 
@@ -28,11 +47,12 @@ const Context = struct {
         return Self{ .world = world };
     }
 
-    pub fn spawn(self: *Self) Entity {
-        return self.world.*.spawnEntity();
+    pub fn spawn(self: *Self) EntityBuilder {
+        return EntityBuilder{ .ctx = self };
     }
 };
 
+// TODO: Add stages to run systems in!
 const App = struct {
     const Self = @This();
 
@@ -78,13 +98,13 @@ const App = struct {
     }
 };
 
-test "can spawn entities with systems" {
+test "can spawn entities" {
     const testSystems = struct {
         fn system1(ctx: *Context) !void {
-            var entity1 = ctx.spawn();
+            var entity1 = ctx.spawn().build();
             try testing.expectEqual(entity1, 0);
 
-            var entity2 = ctx.spawn();
+            var entity2 = ctx.spawn().build();
             try testing.expectEqual(entity2, 1);
         }
 
@@ -92,10 +112,10 @@ test "can spawn entities with systems" {
             // NOTE: Sleep so system2 runs after system1
             std.time.sleep(100);
 
-            var entity3 = ctx.spawn();
+            var entity3 = ctx.spawn().build();
             try testing.expectEqual(entity3, 2);
 
-            var entity4 = ctx.spawn();
+            var entity4 = ctx.spawn().build();
             try testing.expectEqual(entity4, 3);
         }
     };
@@ -105,5 +125,34 @@ test "can spawn entities with systems" {
 
     try app.addSystem(testSystems.system1);
     try app.addSystem(testSystems.system2);
+    try app.run();
+}
+
+test "can spawn entities with components" {
+    const Health = struct { hp: usize };
+    const Age = struct { age: usize };
+
+    const SpawnEntitySystem = struct {
+        // TODO: Write tests to check for components!!
+        fn run(ctx: *Context) !void {
+            const NPC = ctx
+                .spawn()
+                .with(Health{ .hp = 50 })
+                .build();
+            _ = NPC;
+
+            const PLAYER = ctx
+                .spawn()
+                .with(Age{ .age = 22 })
+                .with(Health{ .hp = 99 })
+                .build();
+            _ = PLAYER;
+        }
+    };
+
+    var app = App.init(testing.allocator);
+    defer app.deinit();
+
+    try app.addSystem(SpawnEntitySystem.run);
     try app.run();
 }
