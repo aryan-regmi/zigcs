@@ -1,0 +1,6 @@
+id: nx47qzef4yjpwilrzcm0zywewxulxjqzy82sdes1t6qj2hn0
+name: Zigcs
+main: src/main.zig
+license: zlib
+description: An Entity Component Library for Zig
+dependencies:
