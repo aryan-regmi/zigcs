@@ -3,18 +3,49 @@ const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-const System = *const fn (ctx: Context) void;
+const System = *const fn (ctx: *Context) anyerror!void;
 
-const Context = struct {};
+const Entity = usize;
+
+const World = struct {
+    const Self = @This();
+
+    num_entities: usize,
+
+    fn spawnEntity(self: *Self) Entity {
+        const entity = self.num_entities;
+        self.num_entities += 1;
+        return entity;
+    }
+};
+
+const Context = struct {
+    const Self = @This();
+
+    world: *World,
+
+    pub fn init(world: *World) Self {
+        return Self{ .world = world };
+    }
+
+    pub fn spawn(self: *Self) Entity {
+        return self.world.*.spawnEntity();
+    }
+};
 
 const App = struct {
     const Self = @This();
 
     allocator: Allocator,
+    world: World,
     systems: ArrayList(System),
 
     pub fn init(allocator: Allocator) Self {
-        return Self{ .allocator = allocator, .systems = ArrayList(System).init(allocator) };
+        return Self{
+            .allocator = allocator,
+            .systems = ArrayList(System).init(allocator),
+            .world = World{ .num_entities = 0 },
+        };
     }
 
     pub fn deinit(self: *const Self) void {
@@ -26,17 +57,19 @@ const App = struct {
     }
 
     // TODO: Move to a scheduler struct eventually?
-    fn runSystem(ctx: Context, system: System) void {
-        system(ctx);
+    fn runSystem(ctx: *Context, system: System) !void {
+        try system(ctx);
     }
 
     pub fn run(self: *Self) !void {
         var threads = try std.ArrayList(std.Thread).initCapacity(self.allocator, self.systems.items.len);
         defer threads.deinit();
 
+        var ctx = Context.init(&self.world);
+
         for (self.systems.items) |system| {
-            var ctx = Context{};
-            try threads.append(try std.Thread.spawn(.{}, runSystem, .{ ctx, system }));
+            // FIXME: Make sharing the world thread-safe (mutex?)
+            try threads.append(try std.Thread.spawn(.{}, runSystem, .{ &ctx, system }));
         }
 
         for (threads.items) |thr| {
@@ -45,14 +78,25 @@ const App = struct {
     }
 };
 
-test "can create app and run systems" {
+test "can spawn entities with systems" {
     const testSystems = struct {
-        fn system1(_: Context) void {
-            std.log.debug("\nSystem 1", .{});
+        fn system1(ctx: *Context) !void {
+            var entity1 = ctx.spawn();
+            try testing.expectEqual(entity1, 0);
+
+            var entity2 = ctx.spawn();
+            try testing.expectEqual(entity2, 1);
         }
 
-        fn system2(_: Context) void {
-            std.log.debug("\nSystem 2", .{});
+        fn system2(ctx: *Context) !void {
+            // NOTE: Sleep so system2 runs after system1
+            std.time.sleep(100);
+
+            var entity3 = ctx.spawn();
+            try testing.expectEqual(entity3, 2);
+
+            var entity4 = ctx.spawn();
+            try testing.expectEqual(entity4, 3);
         }
     };
 
