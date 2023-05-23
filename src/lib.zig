@@ -65,18 +65,22 @@ test "can spawn entities" {
     const testSystems = struct {
         fn system1(ctx: Context) !void {
             const e1 = ctx.spawn().build();
-            std.log.debug("[System 1] Entity {}", .{e1});
+            _ = e1;
+            // std.log.debug("\n[System 1] Entity {}", .{e1});
 
             const e2 = ctx.spawn().build();
-            std.log.debug("[System 1] Entity {}", .{e2});
+            _ = e2;
+            // std.log.debug("\n[System 1] Entity {}", .{e2});
         }
 
         fn system2(ctx: Context) !void {
             const e1 = ctx.spawn().build();
-            std.log.debug("[System 2] Entity {}", .{e1});
+            _ = e1;
+            // std.log.debug("\n[System 2] Entity {}", .{e1});
 
             const e2 = ctx.spawn().build();
-            std.log.debug("[System 2] Entity {}", .{e2});
+            _ = e2;
+            // std.log.debug("\n[System 2] Entity {}", .{e2});
         }
 
         fn system3(ctx: Context) !void {
@@ -118,7 +122,6 @@ test "can spawn entities with components" {
         }
     };
 
-    // var app = App.init(testing.allocator);
     var app = App.init(allocator);
     defer app.deinit();
 
