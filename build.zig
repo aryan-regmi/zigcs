@@ -29,6 +29,13 @@ pub fn build(b: *std.Build) void {
     // running `zig build`).
     b.installArtifact(lib);
 
+    // const zigcs_module = b.createModule(.{
+    //     .source_file = .{ .path = "src/lib.zig" },
+    //     .dependencies = &.{},
+    // });
+    // _ = zigcs_module;
+    // b.addModule("zigcs", .{});
+
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
     const main_tests = b.addTest(.{
