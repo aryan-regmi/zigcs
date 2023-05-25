@@ -1,13 +1,36 @@
-const std = @import("std");
-const testing = std.testing;
-const Allocator = std.mem.Allocator;
+const testing = @import("std").testing;
+const App = @import("app.zig").App;
 
-const App = struct {
-    const Self = @This();
+// NOTE: ECS was implemented using methods described here: https://devlog.hexops.com/2022/lets-build-ecs-part-2-databases/
 
-    allocator: Allocator,
+test "Can create App and spawn Entity" {
+    const ALLOCATOR = testing.allocator;
 
-    pub fn init(allocator: Allocator) Self {
-        return .{ .allocator = allocator };
-    }
-};
+    var app = try App.init(ALLOCATOR);
+    defer app.deinit();
+
+    const PLAYER = try app.spawnEntity();
+    _ = PLAYER;
+}
+
+test "Can add components to an Entity" {
+    const ALLOCATOR = testing.allocator;
+
+    const Name = struct {
+        name: []const u8,
+    };
+
+    const Location = struct {
+        x: f32 = 0,
+        y: f32 = 0,
+        z: f32 = 0,
+    };
+
+    var app = try App.init(ALLOCATOR);
+    defer app.deinit();
+
+    const PLAYER = try app.spawnEntity();
+    try app.withComponent(PLAYER, Name{ .name = "Aryan" }); // Add Name
+    try app.withComponent(PLAYER, Location{}); // Add Location
+    try app.withComponent(PLAYER, Name{ .name = "Aryan Regmi" }); // Update Name
+}
