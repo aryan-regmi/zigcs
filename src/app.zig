@@ -27,6 +27,18 @@ pub const StageID = union(enum) {
 
     Named: NamedInfo,
     Idx: u64,
+
+    pub fn getOrder(self: *StageID) u64 {
+        switch (self) {
+            .Named => |info| return info.order,
+            .Idx => |id| return id,
+        }
+    }
+
+    // TODO: Write in-place sort function!
+    pub fn sort(stages: []Stage) !void {
+        _ = stages;
+    }
 };
 
 pub const Stage = struct {
@@ -50,6 +62,9 @@ pub const Stage = struct {
     }
 };
 
+// NOTE: ECS was implemented using methods described here: https://devlog.hexops.com/2022/lets-build-ecs-part-2-databases/
+//
+/// The main interface for the ECS.
 pub const App = struct {
     const Self = @This();
 
@@ -105,41 +120,24 @@ pub const App = struct {
         try self.stages.append(self.allocator, stage);
     }
 
+    /// Runs a specified system with the given context.
     fn runSystem(system: System, ctx: *Context) !void {
         try system(ctx);
     }
 
-    // TODO: Add scheduler to avoid locks if possible!
-    pub fn run(self: *Self) !void {
-        if (self.stages.items.len != 0) {
-            std.debug.print("\nStages:\n", .{});
-        }
+    /// Runs each system in its own thread and waits for all of the systems to finish.
+    fn scheduleSystems(allocator: Allocator, world: *World, mutex: *Thread.Mutex, systems: []System) !void {
+        var threads = try std.ArrayListUnmanaged(Thread).initCapacity(allocator, systems.len);
+        defer threads.deinit(allocator);
 
-        // TODO: Run stages: all systems inside a stage run on separate threads, but all stages run sequentially
-        for (self.stages.items) |stage| {
-            for (stage.systems.items) |system| {
-                _ = system;
-                switch (stage.id) {
-                    .Idx => |id| std.debug.print("\n{},\n\t# of Systems: {}", .{ id, stage.systems.items.len }),
-                    .Named => |info| std.debug.print("\n{}: \"{s}\",\n\t# of Systems: {}", .{
-                        info.order,
-                        info.name,
-                        stage.systems.items.len,
-                    }),
-                }
-            }
-        }
-
-        var threads = try std.ArrayListUnmanaged(Thread).initCapacity(self.allocator, self.systems.items.len);
-
-        for (self.systems.items) |system| {
+        for (systems) |system| {
             var ctx = Context{
-                .allocator = self.allocator,
-                .world = &self.world,
-                .world_mutex = &self.world_mutex,
+                .allocator = allocator,
+                .world = world,
+                .world_mutex = mutex,
             };
             try threads.append(
-                self.allocator,
+                allocator,
                 try Thread.spawn(.{}, runSystem, .{ system, &ctx }),
             );
         }
@@ -148,7 +146,28 @@ pub const App = struct {
         for (threads.items) |thread| {
             thread.join();
         }
+    }
 
-        threads.deinit(self.allocator);
+    // TODO: Add scheduler (premptive-workstealing?) to avoid locks if possible!
+    //
+    /// Runs the stages and the systems in the App.
+    /// NOTE: Currently (due to scheduleSystems) the stages will have to finish running before freestanding systems run.
+    /// In the future, this should be changed so that the freestanding systems are completely independent of the stages.
+    /// (Maybe have 2 separate threads that run scheduleSystems for systems and stages)
+    pub fn run(self: *Self) !void {
+        const ALLOC = self.allocator;
+        const WORLD = &self.world;
+        const MUTEX = &self.world_mutex;
+
+        // Run freestanding systems
+        try App.scheduleSystems(ALLOC, WORLD, MUTEX, self.systems.items);
+
+        // Sort stages by their StageID.order
+        var ordered = Stage.order(self.stages.items);
+
+        // All systems inside a stage run on separate threads, but all stages run sequentially
+        for (ordered) |stage| {
+            try App.scheduleSystems(ALLOC, WORLD, MUTEX, stage.systems.items);
+        }
     }
 };

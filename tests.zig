@@ -66,7 +66,6 @@ test "Can spawn entities with components" {
     var app = try App.init(ALLOC);
     defer app.deinit();
 
-    // std.debug.print("\n", .{});
     try app.addSystem(TestSystems.system1);
     try app.addSystem(TestSystems.system2);
 
@@ -87,46 +86,56 @@ test "Can query for entities" {
     };
 
     const TestSystems = struct {
-        fn system1(ctx: *Context) !void {
+        fn setup1(ctx: *Context) !void {
             var e0 = try ctx.spawn();
             try ctx.addComponent(e0, Name{ .first = "Aryan", .last = "Regmi" });
             try ctx.addComponent(e0, Location{ .x = 90, .y = 10 });
             try ctx.addComponent(e0, Location{ .x = 20, .y = 50 });
 
-            var e1 = try ctx.spawn();
-            try ctx.addComponent(e1, Location{});
+            std.debug.print("Setup 1\n", .{});
         }
 
-        fn system2(ctx: *Context) !void {
+        fn setup2(ctx: *Context) !void {
+            var e1 = try ctx.spawn();
+            try ctx.addComponent(e1, Location{});
+
+            std.debug.print("Setup 2\n", .{});
+        }
+
+        fn querySystem(ctx: *Context) !void {
             _ = ctx;
+
             // TODO: Query for component values
             //
             // comptime var types = [_]type{ Name, Location };
             // ctx.query(&types);
 
-            std.debug.print("System2!\n", .{});
+            std.debug.print("Query\n", .{});
         }
 
-        fn system3(ctx: *Context) !void {
+        fn freestandingSystem(ctx: *Context) !void {
             _ = ctx;
-            std.debug.print("System3!\n", .{});
+
+            std.debug.print("Freestanding\n", .{});
         }
     };
 
     var app = try App.init(ALLOC);
     defer app.deinit();
 
-    var stage0_systems = [_]System{TestSystems.system1};
+    var stage0_systems = [_]System{ TestSystems.setup1, TestSystems.setup2 };
     try app.addStage(StageID{ .Named = .{
         .name = "Setup",
         .order = 0,
     } }, &stage0_systems);
 
-    var stage1_systems = [_]System{TestSystems.system2};
+    var stage1_systems = [_]System{TestSystems.querySystem};
     try app.addStage(StageID{ .Named = .{
         .name = "Queries",
         .order = 1,
     } }, &stage1_systems);
+
+    try app.addSystem(TestSystems.freestandingSystem);
 
     try app.run();
 }
