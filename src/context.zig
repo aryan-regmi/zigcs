@@ -27,4 +27,11 @@ pub const Context = struct {
         try self.world.withComponent(entity, component);
         self.world_mutex.unlock();
     }
+
+    // pub fn query(self: *Self, comptime component_types: []type) void {
+    //     inline for (component_types) |t| {
+    //         var x = self.world.getComponent(0, t).?;
+    //         _ = x;
+    //     }
+    // }
 };

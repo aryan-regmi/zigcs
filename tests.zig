@@ -3,6 +3,8 @@ const testing = std.testing;
 const zigcs = @import("zigcs");
 const App = zigcs.App;
 const Context = zigcs.Context;
+const System = zigcs.System;
+const Stage = zigcs.Stage;
 
 test "Can add and run systems in App" {
     const ALLOC = testing.allocator;
@@ -88,6 +90,7 @@ test "Can query for entities" {
             var e0 = try ctx.spawn();
             try ctx.addComponent(e0, Name{ .first = "Aryan", .last = "Regmi" });
             try ctx.addComponent(e0, Location{ .x = 90, .y = 10 });
+            try ctx.addComponent(e0, Location{ .x = 20, .y = 50 });
 
             var e1 = try ctx.spawn();
             try ctx.addComponent(e1, Location{});
@@ -96,18 +99,22 @@ test "Can query for entities" {
         fn system2(ctx: *Context) !void {
             _ = ctx;
             // TODO: Query for component values
+            //
+            // comptime var types = [_]type{ Name, Location };
+            // ctx.query(&types);
 
-            // ctx.query()
-
+            std.debug.print("System2!\n", .{});
         }
     };
+    _ = TestSystems;
 
     var app = try App.init(ALLOC);
     defer app.deinit();
 
-    // std.debug.print("\n", .{});
-    try app.addSystem(TestSystems.system1);
-    try app.addSystem(TestSystems.system2);
+    // try app.addSystem(TestSystems.system1);
+    // try app.addStage(0, 1, [_]System{TestSystems.system1});
+    // try app.addStage(1, 1, [_]System{TestSystems.system2});
+    // try app.addSystem(TestSystems.system2);
 
     try app.run();
 }

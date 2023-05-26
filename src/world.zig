@@ -220,4 +220,24 @@ pub const World = struct {
             .row_idx = new_row,
         });
     }
+
+    /// Gets the component of `ComponentType` associated with the given entity.
+    pub fn getComponent(self: *Self, entity: Entity, comptime ComponentType: type) ?ComponentType {
+        var archetype = self.archetypeById(entity);
+
+        // If the component has no storage associated with it, return null
+        var erased_component_storage = archetype.components.get(@typeName(ComponentType)) orelse return null;
+
+        // Cast the ErasedComponentStorage to the ComponentType and return the component
+        const ptr = self.entities.get(entity).?;
+        var component_storage = ErasedComponentStorage.asComponentStorage(erased_component_storage.ptr, ComponentType);
+        return component_storage.get(ptr.row_idx);
+    }
+
+    // TODO: Implement this!
+    pub fn removeComponent(self: *Self, entity: Entity, comptime ComponentType: type) !void {
+        _ = ComponentType;
+        _ = entity;
+        _ = self;
+    }
 };
