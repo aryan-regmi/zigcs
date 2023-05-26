@@ -5,6 +5,7 @@ const App = zigcs.App;
 const Context = zigcs.Context;
 const System = zigcs.System;
 const Stage = zigcs.Stage;
+const StageID = zigcs.StageID;
 
 test "Can add and run systems in App" {
     const ALLOC = testing.allocator;
@@ -105,16 +106,27 @@ test "Can query for entities" {
 
             std.debug.print("System2!\n", .{});
         }
+
+        fn system3(ctx: *Context) !void {
+            _ = ctx;
+            std.debug.print("System3!\n", .{});
+        }
     };
-    _ = TestSystems;
 
     var app = try App.init(ALLOC);
     defer app.deinit();
 
-    // try app.addSystem(TestSystems.system1);
-    // try app.addStage(0, 1, [_]System{TestSystems.system1});
-    // try app.addStage(1, 1, [_]System{TestSystems.system2});
-    // try app.addSystem(TestSystems.system2);
+    var stage0_systems = [_]System{TestSystems.system1};
+    try app.addStage(StageID{ .Named = .{
+        .name = "Setup",
+        .order = 0,
+    } }, &stage0_systems);
+
+    var stage1_systems = [_]System{TestSystems.system2};
+    try app.addStage(StageID{ .Named = .{
+        .name = "Queries",
+        .order = 1,
+    } }, &stage1_systems);
 
     try app.run();
 }

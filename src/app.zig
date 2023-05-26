@@ -19,14 +19,25 @@ const Context = @import("context.zig").Context;
 
 pub const System = *const fn (ctx: *Context) anyerror!void;
 
+pub const StageID = union(enum) {
+    const NamedInfo = struct {
+        name: []const u8,
+        order: u64,
+    };
+
+    Named: NamedInfo,
+    Idx: u64,
+};
+
 pub const Stage = struct {
     const Self = @This();
 
     allocator: Allocator,
-    id: u64, // TODO: Make this an ID type
+
+    id: StageID,
     systems: std.ArrayListUnmanaged(System) = .{},
 
-    pub fn init(allocator: Allocator, id: u64) Self {
+    pub fn init(allocator: Allocator, id: StageID) Self {
         return Self{ .allocator = allocator, .id = id };
     }
 
@@ -53,6 +64,8 @@ pub const App = struct {
     /// The systems to be run by the app/ECS.
     systems: std.ArrayListUnmanaged(System) = .{},
 
+    // TODO: Make stages a Set instead of an array: No 2 stages with the same id!! (Do same for systems?)
+    //
     /// The stages to run systems in.
     stages: std.ArrayListUnmanaged(Stage) = .{},
 
@@ -84,7 +97,7 @@ pub const App = struct {
         try self.systems.append(self.allocator, system);
     }
 
-    pub fn addStage(self: *Self, id: u64, comptime num_systems: u64, systems: [num_systems]System) !void {
+    pub fn addStage(self: *Self, id: StageID, systems: []System) !void {
         var stage = Stage.init(self.allocator, id);
         for (systems) |system| {
             try stage.addSystem(system);
@@ -98,14 +111,22 @@ pub const App = struct {
 
     // TODO: Add scheduler to avoid locks if possible!
     pub fn run(self: *Self) !void {
+        if (self.stages.items.len != 0) {
+            std.debug.print("\nStages:\n", .{});
+        }
+
         // TODO: Run stages: all systems inside a stage run on separate threads, but all stages run sequentially
         for (self.stages.items) |stage| {
             for (stage.systems.items) |system| {
                 _ = system;
-                std.debug.print("Stage: {}, Systems: {}\n", .{
-                    stage.id,
-                    stage.systems.items.len,
-                });
+                switch (stage.id) {
+                    .Idx => |id| std.debug.print("\n{},\n\t# of Systems: {}", .{ id, stage.systems.items.len }),
+                    .Named => |info| std.debug.print("\n{}: \"{s}\",\n\t# of Systems: {}", .{
+                        info.order,
+                        info.name,
+                        stage.systems.items.len,
+                    }),
+                }
             }
         }
 
