@@ -1,243 +1,91 @@
 const std = @import("std");
 const storage = @import("storage.zig");
+const StringArrayHashMapUnmanaged = std.StringArrayHashMapUnmanaged;
+const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Allocator = std.mem.Allocator;
 const Entity = storage.Entity;
-const ArchetypeStorage = storage.ArchetypeStorage;
-const ComponentStorage = storage.ComponentStorage;
-const ErasedComponentStorage = storage.ErasedComponentStorage;
-const VOID_ARCHETYPE_HASH = storage.VOID_ARCHETYPE_HASH;
+const ErasedComponent = storage.ErasedComponent;
+const NullableErasedComponent = storage.NullableErasedComponent;
 
 pub const World = struct {
     const Self = @This();
 
     allocator: Allocator,
 
-    /// Map of archetype hash to their storage.
-    ///
-    /// A table representing entities.
-    archetypes: std.AutoArrayHashMapUnmanaged(u64, ArchetypeStorage) = .{},
-
     /// The number of entities.
-    num_entities: Entity = 0,
+    num_entities: u64 = 0,
 
-    /// Map of entities to the location the entity is stored in.
-    entities: std.AutoHashMapUnmanaged(Entity, Pointer) = .{},
+    // TODO: Add archetypes instead of directly storing components?
+    //
+    /// Map of component types and storages.
+    component_storages: StringArrayHashMapUnmanaged(ArrayListUnmanaged(NullableErasedComponent)) = .{},
 
-    /// Points to an entity, specifying the archetype table and row in that table.
-    pub const Pointer = struct {
-        archtype_idx: u16,
-        row_idx: u32,
-    };
-
-    pub fn init(allocator: Allocator) !Self {
-        var world = Self{ .allocator = allocator };
-
-        // Create new void (with no components) archetypes table
-        try world.archetypes.put(
-            allocator,
-            VOID_ARCHETYPE_HASH,
-            ArchetypeStorage{
-                .allocator = allocator,
-                .components = .{},
-                .hash = VOID_ARCHETYPE_HASH,
-            },
-        );
-
-        return world;
-    }
-
-    /// Deallocate all memory allocated by the App.
-    pub fn deinit(self: *Self) void {
-        // Free up the entity map
-        self.entities.deinit(self.allocator);
-
-        // Free up all values in the hashmap & the hashmap itself
-        var iter = self.archetypes.iterator();
-        while (iter.next()) |entry| {
-            entry.value_ptr.deinit();
+    pub fn spawnEntity(self: *Self) !Entity {
+        // Add empty entry for all component storages
+        for (self.component_storages.keys()) |key| {
+            var component_storage = self.component_storages.get(key).?;
+            try component_storage.append(self.allocator, NullableErasedComponent.None);
+            try self.component_storages.put(self.allocator, key, component_storage);
         }
-        self.archetypes.deinit(self.allocator);
+
+        var entity = Entity{ .id = self.num_entities };
+        self.num_entities += 1;
+        return entity;
     }
 
-    /// Creates a type-erased storage/table of Component values.
-    pub fn initErasedStorage(self: *const Self, total_rows: usize, comptime Component: type) !ErasedComponentStorage {
-        // Create a ComponentStorage to hold Components
-        var new_ptr = try self.allocator.create(ComponentStorage(Component));
-        new_ptr.* = ComponentStorage(Component){ .num_entities = total_rows };
+    pub fn addComponentToEntity(self: *Self, entity: Entity, component: anytype) !void {
+        var type_name = @typeName(@TypeOf(component));
 
-        // Return an ErasedComponentStorage from the created ComponentStorage
-        return ErasedComponentStorage{
+        var new_ptr = try self.allocator.create(@TypeOf(component));
+        new_ptr.* = component;
+        var erased = ErasedComponent{
             .ptr = new_ptr,
             .deinit = (struct {
-                pub fn deinit(erased: *anyopaque, allocator: Allocator) void {
-                    var ptr = ErasedComponentStorage.asComponentStorage(erased, Component);
-                    ptr.deinit(allocator);
+                pub fn deinit(erased: *ErasedComponent, allocator: Allocator) void {
+                    var ptr = erased.asConcrete(@TypeOf(component));
                     allocator.destroy(ptr);
                 }
             }).deinit,
-            .cloneType = (struct {
-                pub fn cloneType(erased: ErasedComponentStorage, total_rows_: usize, allocator: Allocator, retval: *ErasedComponentStorage) error{OutOfMemory}!void {
-                    var new_clone = try allocator.create(ComponentStorage(Component));
-                    new_clone.* = ComponentStorage(Component){ .num_entities = total_rows_ };
-                    var tmp = erased;
-                    tmp.ptr = new_clone;
-                    retval.* = tmp;
-                }
-            }).cloneType,
-            .copy = (struct {
-                pub fn copy(dst_erased: *anyopaque, allocator: Allocator, src_row: u32, dst_row: u32, src_erased: *anyopaque) error{OutOfMemory}!void {
-                    var dst = ErasedComponentStorage.asComponentStorage(dst_erased, Component);
-                    var src = ErasedComponentStorage.asComponentStorage(src_erased, Component);
-                    return dst.copy(allocator, src_row, dst_row, src);
-                }
-            }).copy,
-            .remove = (struct {
-                pub fn remove(erased: *anyopaque, row: u32) void {
-                    var ptr = ErasedComponentStorage.asComponentStorage(erased, Component);
-                    ptr.remove(row);
-                }
-            }).remove,
-        };
-    }
-
-    /// Spawns a new entity with no components.
-    pub fn spawnEntity(self: *Self) !Entity {
-        const new_entity = self.num_entities;
-        self.num_entities += 1;
-
-        // Add the new entity to the void_archetype table.
-        var void_archetype = self.archetypes.getPtr(VOID_ARCHETYPE_HASH).?;
-        const new_row = try void_archetype.new(new_entity);
-        const void_pointer = Pointer{
-            .archtype_idx = 0,
-            .row_idx = new_row,
         };
 
-        self.entities.put(self.allocator, new_entity, void_pointer) catch |e| {
-            void_archetype.undoNew();
-            return e;
-        };
-
-        return new_entity;
-    }
-
-    inline fn archetypeById(self: *Self, entity: Entity) *ArchetypeStorage {
-        const ptr = self.entities.get(entity).?;
-        return &self.archetypes.values()[ptr.archtype_idx];
-    }
-
-    /// Add a new component to the entity, or update the existing component.
-    ///
-    /// If adding a new component, the entity gets moved to a new archetype table.
-    pub fn withComponent(self: *Self, entity: Entity, component: anytype) !void {
-        var archetype = self.archetypeById(entity);
-
-        // Check if a new archetype needs to be created.
-        const old_hash = archetype.hash;
-        const type_name = @typeName(@TypeOf(component));
-        var componentTypeExists = archetype.components.contains(type_name);
-        const new_hash = if (componentTypeExists) old_hash else old_hash ^ std.hash_map.hashString(type_name);
-
-        // Get the archetype storage for this entity, or create a new one
-        var archetype_entry = try self.archetypes.getOrPut(self.allocator, new_hash);
-        if (!archetype_entry.found_existing) {
-            archetype_entry.value_ptr.* = ArchetypeStorage{
-                .allocator = self.allocator,
-                .components = .{},
-                .hash = 0,
-            };
-
-            var new_archetype = archetype_entry.value_ptr;
-
-            // Create storage columns for the existing components on the entity
-            var column_iter = archetype.components.iterator();
-            while (column_iter.next()) |entry| {
-                var erased: ErasedComponentStorage = undefined;
-                entry.value_ptr.cloneType(entry.value_ptr.*, new_archetype.entities.items.len, self.allocator, &erased) catch |e| {
-                    std.debug.assert(self.archetypes.swapRemove(new_hash));
-                    return e;
-                };
-                new_archetype.components.put(self.allocator, entry.key_ptr.*, erased) catch |e| {
-                    std.debug.assert(self.archetypes.swapRemove(new_hash));
-                    return e;
-                };
-            }
-
-            // Create column for the new component.
-            const erased = self.initErasedStorage(new_archetype.entities.items.len, @TypeOf(component)) catch |e| {
-                std.debug.assert(self.archetypes.swapRemove(new_hash));
-                return e;
-            };
-            new_archetype.components.put(self.allocator, type_name, erased) catch |e| {
-                std.debug.assert(self.archetypes.swapRemove(new_hash));
-                return e;
-            };
-            new_archetype.calculateHash();
-        }
-
-        // Update the table by putting component value into it
-        var current_archetype_storage = archetype_entry.value_ptr;
-        if (new_hash == old_hash) {
-            // Update the value of the existing component of the entity.
-            const ptr = self.entities.get(entity).?;
-            try current_archetype_storage.set(ptr.row_idx, type_name, component);
+        // If component storage exists, just add the component to it
+        if (self.component_storages.contains(type_name)) {
+            var component_storage = self.component_storages.get(type_name).?;
+            component_storage.items[entity.id] = NullableErasedComponent{ .Some = erased };
             return;
         }
 
-        // Move entity to new table if necessary
-        const new_row = try current_archetype_storage.new(entity);
-        const old_ptr = self.entities.get(entity).?;
-        var column_iter = archetype.components.iterator();
-        while (column_iter.next()) |entry| {
-            var old_component_storage = entry.value_ptr;
-            var new_component_storage = current_archetype_storage.components.get(entry.key_ptr.*).?;
-            new_component_storage.copy(new_component_storage.ptr, self.allocator, new_row, old_ptr.row_idx, old_component_storage.ptr) catch |e| {
-                current_archetype_storage.undoNew();
-                return e;
-            };
+        // Otherwise, create a new component storage and add the component to it
+        var new_storage = try ArrayListUnmanaged(NullableErasedComponent).initCapacity(self.allocator, self.num_entities);
+        for (0..self.num_entities) |i| {
+            if (i == entity.id) {
+                try new_storage.append(self.allocator, NullableErasedComponent{ .Some = erased });
+            } else {
+                try new_storage.append(self.allocator, NullableErasedComponent.None);
+            }
         }
 
-        // Update the new storage by putting compnent into it
-        current_archetype_storage.entities.items[new_row] = entity;
-
-        // Add new component to storage
-        current_archetype_storage.set(new_row, type_name, component) catch |e| {
-            current_archetype_storage.undoNew();
-            return e;
-        };
-
-        // Remove old table row
-        var swapped_entity = archetype.entities.items[archetype.entities.items.len - 1];
-        archetype.remove(old_ptr.row_idx) catch |e| {
-            current_archetype_storage.undoNew();
-            return e;
-        };
-        try self.entities.put(self.allocator, swapped_entity, old_ptr);
-
-        // Update the app's entity map
-        try self.entities.put(self.allocator, entity, Pointer{
-            .archtype_idx = @intCast(u16, archetype_entry.index),
-            .row_idx = new_row,
-        });
+        // Add new component storage to the world
+        try self.component_storages.put(self.allocator, type_name, new_storage);
     }
 
-    /// Gets the component of `ComponentType` associated with the given entity.
-    pub fn getComponent(self: *Self, entity: Entity, comptime ComponentType: type) ?ComponentType {
-        var archetype = self.archetypeById(entity);
+    pub fn deinit(self: *Self) void {
+        for (self.component_storages.values()) |component_storage| {
+            // Free all ErasedComponents
+            for (component_storage.items) |entry| {
+                switch (entry) {
+                    .None => {},
+                    .Some => |val| {
+                        val.deinit(@constCast(&val), self.allocator);
+                    },
+                }
+            }
 
-        // If the component has no storage associated with it, return null
-        var erased_component_storage = archetype.components.get(@typeName(ComponentType)) orelse return null;
+            // Free list stored in map
+            (@constCast(&component_storage)).deinit(self.allocator);
+        }
 
-        // Cast the ErasedComponentStorage to the ComponentType and return the component
-        const ptr = self.entities.get(entity).?;
-        var component_storage = ErasedComponentStorage.asComponentStorage(erased_component_storage.ptr, ComponentType);
-        return component_storage.get(ptr.row_idx);
-    }
-
-    // TODO: Implement this!
-    pub fn removeComponent(self: *Self, entity: Entity, comptime ComponentType: type) !void {
-        _ = ComponentType;
-        _ = entity;
-        _ = self;
+        // Free map
+        self.component_storages.deinit(self.allocator);
     }
 };

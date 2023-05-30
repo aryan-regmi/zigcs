@@ -4,38 +4,27 @@ const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
 const storage = @import("storage.zig");
 const Entity = storage.Entity;
-const ArchetypeStorage = storage.ArchetypeStorage;
-const ComponentStorage = storage.ComponentStorage;
-const ErasedComponentStorage = storage.ErasedComponentStorage;
-const VOID_ARCHETYPE_HASH = storage.VOID_ARCHETYPE_HASH;
 const World = @import("world.zig").World;
 const Context = @import("context.zig").Context;
-
-// TODO: Add queries
-// TODO: Add comptime checks to make sure components are structs?
-// TODO: Add getting component logic
-// TODO: Add removing component logic
-// TODO: Add stages for systems
 
 pub const System = *const fn (ctx: *Context) anyerror!void;
 
 pub const StageID = union(enum) {
+    Named: NamedInfo,
+    Idx: u64,
+
     const NamedInfo = struct {
         name: []const u8,
         order: u64,
     };
 
-    Named: NamedInfo,
-    Idx: u64,
-
-    pub fn getOrder(self: *StageID) u64 {
+    pub fn getOrder(self: StageID) u64 {
         switch (self) {
             .Named => |info| return info.order,
             .Idx => |id| return id,
         }
     }
 
-    // TODO: Write in-place sort function!
     pub fn sort(stages: []Stage) !void {
         _ = stages;
     }
@@ -60,10 +49,23 @@ pub const Stage = struct {
     pub fn addSystem(self: *Self, system: System) !void {
         try self.systems.append(self.allocator, system);
     }
+
+    fn cmpOrder(context: void, a: Self, b: Self) bool {
+        _ = context;
+
+        if (a.id.getOrder() < b.id.getOrder()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    fn sort(stages: []Self) []Self {
+        std.sort.sort(Self, stages, {}, cmpOrder);
+        return stages;
+    }
 };
 
-// NOTE: ECS was implemented using methods described here: https://devlog.hexops.com/2022/lets-build-ecs-part-2-databases/
-//
 /// The main interface for the ECS.
 pub const App = struct {
     const Self = @This();
@@ -88,7 +90,7 @@ pub const App = struct {
     pub fn init(allocator: Allocator) !Self {
         return Self{
             .allocator = allocator,
-            .world = try World.init(allocator),
+            .world = World{ .allocator = allocator },
             .world_mutex = std.Thread.Mutex{},
         };
     }
@@ -120,54 +122,44 @@ pub const App = struct {
         try self.stages.append(self.allocator, stage);
     }
 
-    /// Runs a specified system with the given context.
-    fn runSystem(system: System, ctx: *Context) !void {
+    fn runSystem(ctx: *Context, system: System) !void {
         try system(ctx);
     }
 
-    /// Runs each system in its own thread and waits for all of the systems to finish.
-    fn scheduleSystems(allocator: Allocator, world: *World, mutex: *Thread.Mutex, systems: []System) !void {
-        var threads = try std.ArrayListUnmanaged(Thread).initCapacity(allocator, systems.len);
-        defer threads.deinit(allocator);
+    pub fn run(self: *Self) !void {
+        var num_systems = self.systems.items.len;
+        var num_stages = self.stages.items.len;
 
-        for (systems) |system| {
-            var ctx = Context{
-                .allocator = allocator,
-                .world = world,
-                .world_mutex = mutex,
-            };
-            try threads.append(
-                allocator,
-                try Thread.spawn(.{}, runSystem, .{ system, &ctx }),
-            );
+        var threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_systems);
+        defer threads.deinit();
+
+        // Spawn threads for each free-standing system
+        for (self.systems.items) |system| {
+            var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
+            var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
+            try threads.append(thread);
         }
 
-        // Wait for threads
+        // Spawn threads for each system in a stage: Stages run sequentially, systems run in parallel
+        var ordered_stages = Stage.sort(self.stages.items);
+        for (ordered_stages) |stage| {
+            var stage_threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_stages);
+            defer stage_threads.deinit();
+
+            for (stage.systems.items) |system| {
+                var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
+                var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
+                try stage_threads.append(thread);
+            }
+
+            // Wait for systems to finish before running next stage
+            for (stage_threads.items) |thread| {
+                thread.join();
+            }
+        }
+
         for (threads.items) |thread| {
             thread.join();
-        }
-    }
-
-    // TODO: Add scheduler (premptive-workstealing?) to avoid locks if possible!
-    //
-    /// Runs the stages and the systems in the App.
-    /// NOTE: Currently (due to scheduleSystems) the stages will have to finish running before freestanding systems run.
-    /// In the future, this should be changed so that the freestanding systems are completely independent of the stages.
-    /// (Maybe have 2 separate threads that run scheduleSystems for systems and stages)
-    pub fn run(self: *Self) !void {
-        const ALLOC = self.allocator;
-        const WORLD = &self.world;
-        const MUTEX = &self.world_mutex;
-
-        // Run freestanding systems
-        try App.scheduleSystems(ALLOC, WORLD, MUTEX, self.systems.items);
-
-        // Sort stages by their StageID.order
-        var ordered = Stage.order(self.stages.items);
-
-        // All systems inside a stage run on separate threads, but all stages run sequentially
-        for (ordered) |stage| {
-            try App.scheduleSystems(ALLOC, WORLD, MUTEX, stage.systems.items);
         }
     }
 };

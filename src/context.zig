@@ -16,22 +16,11 @@ pub const Context = struct {
 
     pub fn spawn(self: *Self) !Entity {
         self.world_mutex.lock();
-        var entity = try self.world.spawnEntity();
+        var entity = self.world.spawnEntity();
         self.world_mutex.unlock();
 
         return entity;
     }
 
-    pub fn addComponent(self: *Self, entity: Entity, component: anytype) !void {
-        self.world_mutex.lock();
-        try self.world.withComponent(entity, component);
-        self.world_mutex.unlock();
-    }
-
-    // pub fn query(self: *Self, comptime component_types: []type) void {
-    //     inline for (component_types) |t| {
-    //         var x = self.world.getComponent(0, t).?;
-    //         _ = x;
-    //     }
-    // }
+    // TODO: Add queries
 };
