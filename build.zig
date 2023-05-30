@@ -38,6 +38,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    // integration_tests.sanitize_thread = true;
     integration_tests.addModule("zigcs", zigcs_module);
     const run_integration_tests = b.addRunArtifact(integration_tests);
     run_integration_tests.has_side_effects = true; // Force recompile
