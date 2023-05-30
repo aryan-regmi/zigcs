@@ -36,6 +36,7 @@ pub const World = struct {
     pub fn addComponentToEntity(self: *Self, entity: Entity, component: anytype) !void {
         var type_name = @typeName(@TypeOf(component));
 
+        // Create ErasedComponent from the component
         var new_ptr = try self.allocator.create(@TypeOf(component));
         new_ptr.* = component;
         var erased = ErasedComponent{

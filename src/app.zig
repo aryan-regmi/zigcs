@@ -126,19 +126,8 @@ pub const App = struct {
         try system(ctx);
     }
 
-    pub fn run(self: *Self) !void {
-        var num_systems = self.systems.items.len;
+    fn runStages(self: *Self) !void {
         var num_stages = self.stages.items.len;
-
-        var threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_systems);
-        defer threads.deinit();
-
-        // Spawn threads for each free-standing system
-        for (self.systems.items) |system| {
-            var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
-            var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
-            try threads.append(thread);
-        }
 
         // Spawn threads for each system in a stage: Stages run sequentially, systems run in parallel
         var ordered_stages = Stage.sort(self.stages.items);
@@ -156,6 +145,24 @@ pub const App = struct {
             for (stage_threads.items) |thread| {
                 thread.join();
             }
+        }
+    }
+
+    // TODO: Make sure free-standing systems run indepedently!
+    pub fn run(self: *Self) !void {
+        var num_systems = self.systems.items.len;
+
+        var threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_systems + 1);
+        defer threads.deinit();
+
+        // Spawn thread to run stages in
+        try threads.append(try Thread.spawn(.{}, runStages, .{self}));
+
+        // Spawn threads for each free-standing system
+        for (self.systems.items) |system| {
+            var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
+            var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
+            try threads.append(thread);
         }
 
         for (threads.items) |thread| {

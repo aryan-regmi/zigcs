@@ -22,5 +22,26 @@ pub const Context = struct {
         return entity;
     }
 
-    // TODO: Add queries
+    pub fn buildQuery(self: *Self) QueryBuilder {
+        return QueryBuilder{ .allocator = self.allocator };
+    }
 };
+
+pub const QueryBuilder = struct {
+    allocator: Allocator,
+
+    query_types: std.ArrayListUnmanaged([]const u8) = .{},
+
+    pub fn with(self: *QueryBuilder, comptime ComponentType: type) !void {
+        try self.query_types.append(self.allocator, @typeName(ComponentType));
+    }
+
+    // TODO: Add actual logic to grab components that fit the queried types!
+    pub fn build(self: *QueryBuilder) !Query {
+        self.query_types.deinit(self.allocator);
+
+        return Query{};
+    }
+};
+
+pub const Query = struct {};
