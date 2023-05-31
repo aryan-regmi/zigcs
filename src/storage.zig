@@ -12,9 +12,9 @@ pub const Entity = struct {
     //
     /// Add the specified component to this Entity.
     pub fn addComponent(self: *Self, ctx: *Context, component: anytype) !void {
-        ctx.world_mutex.lock();
-        try ctx.world.addComponentToEntity(self.*, component);
-        ctx.world_mutex.unlock();
+        ctx._world_mutex.lock();
+        try ctx._world.addComponentToEntity(self.*, component);
+        ctx._world_mutex.unlock();
     }
 };
 
@@ -22,12 +22,12 @@ pub const Entity = struct {
 pub const ErasedComponent = struct {
     const Self = @This();
 
-    ptr: *anyopaque,
+    _ptr: *anyopaque,
 
-    deinit: *const fn (erased: *Self, allocator: Allocator) void,
+    _deinit: *const fn (erased: *Self, allocator: Allocator) void,
 
     pub fn asConcrete(self: *Self, comptime ComponentType: type) *ComponentType {
-        var aligned = @alignCast(@alignOf(*ComponentType), self.ptr);
+        var aligned = @alignCast(@alignOf(*ComponentType), self._ptr);
         return @ptrCast(*ComponentType, aligned);
     }
 };

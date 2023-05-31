@@ -24,36 +24,32 @@ pub const StageID = union(enum) {
             .Idx => |id| return id,
         }
     }
-
-    pub fn sort(stages: []Stage) !void {
-        _ = stages;
-    }
 };
 
 pub const Stage = struct {
     const Self = @This();
 
-    allocator: Allocator,
+    _allocator: Allocator,
 
-    id: StageID,
-    systems: std.ArrayListUnmanaged(System) = .{},
+    _id: StageID,
+    _systems: std.ArrayListUnmanaged(System) = .{},
 
     pub fn init(allocator: Allocator, id: StageID) Self {
-        return Self{ .allocator = allocator, .id = id };
+        return Self{ ._allocator = allocator, ._id = id };
     }
 
     pub fn deinit(self: *Self) void {
-        self.systems.deinit(self.allocator);
+        self._systems.deinit(self._allocator);
     }
 
     pub fn addSystem(self: *Self, system: System) !void {
-        try self.systems.append(self.allocator, system);
+        try self._systems.append(self._allocator, system);
     }
 
     fn cmpOrder(context: void, a: Self, b: Self) bool {
         _ = context;
 
-        if (a.id.getOrder() < b.id.getOrder()) {
+        if (a._id.getOrder() < b._id.getOrder()) {
             return true;
         }
 
@@ -70,56 +66,56 @@ pub const Stage = struct {
 pub const App = struct {
     const Self = @This();
 
-    allocator: Allocator,
+    _allocator: Allocator,
 
     /// The world that contains all the storages/tables.
-    world: World,
+    _world: World,
 
     /// Mutex for the world.
-    world_mutex: std.Thread.Mutex,
+    _world_mutex: std.Thread.Mutex,
 
     /// The systems to be run by the app/ECS.
-    systems: std.ArrayListUnmanaged(System) = .{},
+    _systems: std.ArrayListUnmanaged(System) = .{},
 
     // TODO: Make stages a Set instead of an array: No 2 stages with the same id!! (Do same for systems?)
     //
     /// The stages to run systems in.
-    stages: std.ArrayListUnmanaged(Stage) = .{},
+    _stages: std.ArrayListUnmanaged(Stage) = .{},
 
     /// Create a new ECS app.
     pub fn init(allocator: Allocator) !Self {
         return Self{
-            .allocator = allocator,
-            .world = World{ .allocator = allocator },
-            .world_mutex = std.Thread.Mutex{},
+            ._allocator = allocator,
+            ._world = World{ ._allocator = allocator },
+            ._world_mutex = std.Thread.Mutex{},
         };
     }
 
     /// Deallocate all memory allocated by the App.
     pub fn deinit(self: *Self) void {
         // Free up the stages
-        for (self.stages.items) |stage| {
+        for (self._stages.items) |stage| {
             @constCast(&stage).deinit();
         }
-        self.stages.deinit(self.allocator);
+        self._stages.deinit(self._allocator);
 
         // Free up the systems list
-        self.systems.deinit(self.allocator);
+        self._systems.deinit(self._allocator);
 
         // Free up the World
-        self.world.deinit();
+        self._world.deinit();
     }
 
     pub fn addSystem(self: *Self, system: System) !void {
-        try self.systems.append(self.allocator, system);
+        try self._systems.append(self._allocator, system);
     }
 
     pub fn addStage(self: *Self, id: StageID, systems: []System) !void {
-        var stage = Stage.init(self.allocator, id);
+        var stage = Stage.init(self._allocator, id);
         for (systems) |system| {
             try stage.addSystem(system);
         }
-        try self.stages.append(self.allocator, stage);
+        try self._stages.append(self._allocator, stage);
     }
 
     fn runSystem(ctx: *Context, system: System) !void {
@@ -127,16 +123,16 @@ pub const App = struct {
     }
 
     fn runStages(self: *Self) !void {
-        var num_stages = self.stages.items.len;
+        var num_stages = self._stages.items.len;
 
         // Spawn threads for each system in a stage: Stages run sequentially, systems run in parallel
-        var ordered_stages = Stage.sort(self.stages.items);
+        var ordered_stages = Stage.sort(self._stages.items);
         for (ordered_stages) |stage| {
-            var stage_threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_stages);
+            var stage_threads = try std.ArrayList(Thread).initCapacity(self._allocator, num_stages);
             defer stage_threads.deinit();
 
-            for (stage.systems.items) |system| {
-                var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
+            for (stage._systems.items) |system| {
+                var ctx = Context{ ._allocator = self._allocator, ._world = &self._world, ._world_mutex = &self._world_mutex };
                 var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
                 try stage_threads.append(thread);
             }
@@ -149,17 +145,17 @@ pub const App = struct {
     }
 
     pub fn run(self: *Self) !void {
-        var num_systems = self.systems.items.len;
+        var num_systems = self._systems.items.len;
 
-        var threads = try std.ArrayList(Thread).initCapacity(self.allocator, num_systems + 1);
+        var threads = try std.ArrayList(Thread).initCapacity(self._allocator, num_systems + 1);
         defer threads.deinit();
 
         // Spawn thread to run stages in
         try threads.append(try Thread.spawn(.{}, runStages, .{self}));
 
         // Spawn threads for each free-standing system
-        for (self.systems.items) |system| {
-            var ctx = Context{ .allocator = self.allocator, .world = &self.world, .world_mutex = &self.world_mutex };
+        for (self._systems.items) |system| {
+            var ctx = Context{ ._allocator = self._allocator, ._world = &self._world, ._world_mutex = &self._world_mutex };
             var thread = try Thread.spawn(.{}, runSystem, .{ &ctx, system });
             try threads.append(thread);
         }
