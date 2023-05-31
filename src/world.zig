@@ -21,6 +21,9 @@ pub const World = struct {
     /// Map of component types and storages.
     _component_storages: StringArrayHashMapUnmanaged(ArrayListUnmanaged(NullableErasedComponent)) = .{},
 
+    /// Keeps track of the component types associated w/ an entity. (Alternative to a bitmap)
+    _entity_map: std.AutoArrayHashMapUnmanaged(u64, ArrayListUnmanaged([]const u8)) = .{},
+
     /// Spawns a new entity in the ECS.
     pub fn spawnEntity(self: *Self) !Entity {
         // Add empty entry for all component storages
@@ -32,6 +35,11 @@ pub const World = struct {
 
         var entity = Entity{ .id = self._num_entites };
         self._num_entites += 1;
+
+        // Add empty entry in entity map for this entity
+        var empty_string_array: ArrayListUnmanaged([]const u8) = .{};
+        try self._entity_map.put(self._allocator, entity.id, empty_string_array);
+
         return entity;
     }
 
@@ -71,6 +79,11 @@ pub const World = struct {
 
         // Add new component storage to the world
         try self._component_storages.put(self._allocator, type_name, new_storage);
+
+        // Add component type to entity map
+        var entity_components: ArrayListUnmanaged([]const u8) = self._entity_map.get(entity.id).?;
+        try entity_components.append(self._allocator, type_name);
+        try self._entity_map.put(self._allocator, entity.id, entity_components);
     }
 
     /// Returns the ArrayList of ComponentType if it exists in the world.
@@ -93,6 +106,13 @@ pub const World = struct {
             // Free list stored in map
             (@constCast(&component_storage)).deinit(self._allocator);
         }
+
+        // Free entity map
+        for (self._entity_map.values()) |entity_component_list| {
+            // Free list stored in map
+            (@constCast(&entity_component_list)).deinit(self._allocator);
+        }
+        self._entity_map.deinit(self._allocator);
 
         // Free map
         self._component_storages.deinit(self._allocator);
