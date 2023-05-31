@@ -148,7 +148,6 @@ pub const App = struct {
         }
     }
 
-    // TODO: Make sure free-standing systems run indepedently!
     pub fn run(self: *Self) !void {
         var num_systems = self.systems.items.len;
 

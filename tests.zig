@@ -77,13 +77,13 @@ test "Can query for components" {
             var locations_query = ctx.buildQuery();
             try locations_query.with(Location);
             var locations = try locations_query.build();
-            _ = locations;
+            defer locations.deinit();
 
             var player_query = ctx.buildQuery();
             try player_query.with(Location);
             try player_query.with(Name);
             var player = try player_query.build();
-            _ = player;
+            defer player.deinit();
 
             std.log.warn("Query System", .{});
         }

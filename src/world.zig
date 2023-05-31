@@ -7,6 +7,7 @@ const Entity = storage.Entity;
 const ErasedComponent = storage.ErasedComponent;
 const NullableErasedComponent = storage.NullableErasedComponent;
 
+// TODO: Add entity map to keep track of the component types of an entity (hash the component type and store that instead of type_name?).
 pub const World = struct {
     const Self = @This();
 
@@ -20,6 +21,7 @@ pub const World = struct {
     /// Map of component types and storages.
     component_storages: StringArrayHashMapUnmanaged(ArrayListUnmanaged(NullableErasedComponent)) = .{},
 
+    /// Spawns a new entity in the ECS.
     pub fn spawnEntity(self: *Self) !Entity {
         // Add empty entry for all component storages
         for (self.component_storages.keys()) |key| {
@@ -33,6 +35,7 @@ pub const World = struct {
         return entity;
     }
 
+    /// Adds a component to the specified Entity.
     pub fn addComponentToEntity(self: *Self, entity: Entity, component: anytype) !void {
         var type_name = @typeName(@TypeOf(component));
 
@@ -68,6 +71,11 @@ pub const World = struct {
 
         // Add new component storage to the world
         try self.component_storages.put(self.allocator, type_name, new_storage);
+    }
+
+    /// Returns the ArrayList of ComponentType if it exists in the world.
+    pub fn getComponentStorage(self: *Self, type_name: [:0]const u8) ?ArrayListUnmanaged(NullableErasedComponent) {
+        return self.component_storages.get(type_name) orelse null;
     }
 
     pub fn deinit(self: *Self) void {
