@@ -3,6 +3,8 @@ const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Context = @import("context.zig").Context;
 
+// TODO: Store type-erased storage instead of erasing (and allocating) each individual component
+
 pub const Entity = struct {
     const Self = @This();
 
@@ -33,6 +35,6 @@ pub const ErasedComponent = struct {
 };
 
 pub const NullableErasedComponent = union(enum) {
+    None,
     Some: ErasedComponent,
-    None: void,
 };

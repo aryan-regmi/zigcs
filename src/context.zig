@@ -48,34 +48,65 @@ pub const QueryBuilder = struct {
         try self._query_types.append(self._allocator, @typeName(ComponentType));
     }
 
+    fn componentTypeListContainsComponent(component_types_list: [][]const u8, component_type: []const u8) bool {
+        for (component_types_list) |component_type_| {
+            if (std.mem.eql(u8, component_type_, component_type)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// Returns a query to grab the components from.
     pub fn build(self: *QueryBuilder) !Query {
-        //  Grab the corresponding ArrayLists from the world!
-        var map: std.StringArrayHashMapUnmanaged(std.ArrayListUnmanaged(NullableErasedComponent)) = .{};
+        var components_map: std.AutoArrayHashMapUnmanaged(u64, []ErasedComponent) = .{};
+
         for (self._query_types.items) |query_type| {
             self._ctx._world_mutex.lock();
-            var component_storage = self._ctx._world.getComponentStorage(query_type).?;
-            try map.put(self._allocator, query_type, component_storage);
+
+            // TODO: Only store entities that have the requested component in the entity map?
+            var entity_map = self._ctx._world._entity_map;
+            var valid_components: std.ArrayListUnmanaged(ErasedComponent) = .{};
+            var current_entity: u64 = undefined;
+            for (entity_map.keys()) |entity_id| {
+                var entity_component_types: std.ArrayListUnmanaged([]const u8) = entity_map.get(entity_id).?;
+
+                // If entity_component_types contains the query_type, then grab that component storage
+                if (componentTypeListContainsComponent(entity_component_types.items, query_type)) {
+                    var component_storage = self._ctx._world.getComponentStorage(query_type).?;
+
+                    // TODO: Grab the component value for that entity from the component_storage
+                    var component: NullableErasedComponent = component_storage.items[entity_id];
+
+                    try valid_components.append(self._allocator, component.Some);
+                    current_entity = entity_id;
+                }
+            }
+            try components_map.put(self._allocator, current_entity, try valid_components.toOwnedSlice(self._allocator));
+
             self._ctx._world_mutex.unlock();
         }
 
         // Free up the memory allocatoed to store the query types.
         self._query_types.deinit(self._allocator);
 
-        return Query{ ._allocator = self._allocator, ._component_storages = map };
+        return Query{
+            ._allocator = self._allocator,
+            ._component_map = components_map, // TODO: Add actual components here
+        };
     }
 };
 
 pub const Query = struct {
     _allocator: Allocator,
 
-    _component_storages: std.StringArrayHashMapUnmanaged(std.ArrayListUnmanaged(NullableErasedComponent)),
+    /// Maps an entity to the list of components associated with it
+    _component_map: std.AutoArrayHashMapUnmanaged(u64, []ErasedComponent),
 
-    /// Frees the memory used by the component storages map.
-    ///
-    /// NOTE: This doesn't free the memory used by the ArrayLists in the map, as those are allocated and freed by the world.
     pub fn deinit(self: *Query) void {
-        self._component_storages.deinit(self._allocator);
+        // TODO: Free all memory of component map!
+        _ = self;
     }
 
     // TODO: Add getComponent function to get a component at an index

@@ -7,7 +7,6 @@ const Entity = storage.Entity;
 const ErasedComponent = storage.ErasedComponent;
 const NullableErasedComponent = storage.NullableErasedComponent;
 
-// TODO: Add entity map to keep track of the component types of an entity (hash the component type and store that instead of type_name?).
 pub const World = struct {
     const Self = @This();
 
@@ -21,6 +20,8 @@ pub const World = struct {
     /// Map of component types and storages.
     _component_storages: StringArrayHashMapUnmanaged(ArrayListUnmanaged(NullableErasedComponent)) = .{},
 
+    // TODO: Store array of hashes instead, where indices represent entity and hash represents the component types associated with it.
+    //
     /// Keeps track of the component types associated w/ an entity. (Alternative to a bitmap)
     _entity_map: std.AutoArrayHashMapUnmanaged(u64, ArrayListUnmanaged([]const u8)) = .{},
 
