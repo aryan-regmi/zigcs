@@ -13,28 +13,45 @@ pub const Entity = struct {
     // TODO: Add comptime checks to make sure components are structs?
     //
     /// Add the specified component to this Entity.
-    pub fn addComponent(self: *Self, ctx: *Context, component: anytype) !void {
+    pub fn addComponent(self: *Self, ctx: *Context, comptime component: anytype) !void {
         ctx._world_mutex.lock();
         try ctx._world.addComponentToEntity(self.*, component);
         ctx._world_mutex.unlock();
     }
 };
 
-/// A type-erased component.
-pub const ErasedComponent = struct {
+pub fn ComponentStorage(comptime ComponentType: type) type {
+    return struct {
+        const Self = @This();
+
+        _storage: std.ArrayListUnmanaged(ComponentType),
+
+        pub fn deinit(self: *Self, allocator: Allocator) void {
+            self._storage.deinit(allocator);
+        }
+    };
+}
+
+pub const ErasedComponentStorage = struct {
     const Self = @This();
 
+    // FIXME: Might not actually need to store the hash here
+    //
+    /// The hash for the type of the components stored.
+    _hash: u64,
+
+    /// A list of all entities that have this component type.
+    _entities: ArrayListUnmanaged(u64) = .{},
+
+    /// A pointer to the underlying ComponentStorage.
     _ptr: *anyopaque,
 
+    /// Pointer to function that frees up all resources.
     _deinit: *const fn (erased: *Self, allocator: Allocator) void,
 
-    pub fn asConcrete(self: *Self, comptime ComponentType: type) *ComponentType {
-        var aligned = @alignCast(@alignOf(*ComponentType), self._ptr);
-        return @ptrCast(*ComponentType, aligned);
+    /// Casts the type-erased storage to a typed storage (ComponentStorage).
+    pub fn asComponentStorage(self: *Self, comptime ComponentType: type) *ComponentStorage(ComponentType) {
+        var aligned = @alignCast(@alignOf(*ComponentStorage(ComponentType)), self._ptr);
+        return @ptrCast(*ComponentStorage(ComponentType), aligned);
     }
-};
-
-pub const NullableErasedComponent = union(enum) {
-    None,
-    Some: ErasedComponent,
 };
