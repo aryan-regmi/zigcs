@@ -43,7 +43,6 @@ pub const World = struct {
     }
 
     fn initErasedStorage(self: *Self, comptime ComponentType: type, component: ComponentType, entity: Entity) !void {
-        _ = entity;
         var new_storage: std.ArrayListUnmanaged(ComponentType) = .{};
         try new_storage.append(self._allocator, component);
 
@@ -62,7 +61,12 @@ pub const World = struct {
             })._deinit,
         };
 
-        // FIXME: Add storage info to entity map!
+        // Add storage info to entity map!
+        var entity_map_entry: *std.ArrayListUnmanaged(StorageInfo) = self._entity_map.getPtr(entity.id).?;
+        try entity_map_entry.append(self._allocator, StorageInfo{
+            .type_name = @typeName(ComponentType),
+            .index = 0, // If a new storage is being created, then the passed entity will be at the first index of the storage
+        });
 
         try self._component_storages.put(self._allocator, @typeName(ComponentType), erased_storage);
     }
@@ -75,11 +79,16 @@ pub const World = struct {
         // Add component to storage if storage already exists
         if (self._component_storages.contains(TYPE_NAME)) {
             var erased_component_storage: *ErasedComponentStorage = self._component_storages.getPtr(TYPE_NAME).?;
-
-            // FIXME: Add storage info to entity map!
-
             var component_storage = erased_component_storage.asComponentStorage(COMPONENT_TYPE);
             try component_storage._storage.append(self._allocator, component);
+
+            // Add storage info to entity map!
+            var entity_map_entry: *std.ArrayListUnmanaged(StorageInfo) = self._entity_map.getPtr(entity.id).?;
+            try entity_map_entry.append(self._allocator, StorageInfo{
+                .type_name = TYPE_NAME,
+                .index = component_storage._storage.items.len,
+            });
+
             return;
         }
 
@@ -94,6 +103,9 @@ pub const World = struct {
 
     pub fn deinit(self: *Self) void {
         // Free entity map
+        for (self._entity_map.values()) |entry| {
+            @constCast(&entry).deinit(self._allocator);
+        }
         self._entity_map.deinit(self._allocator);
 
         // Free component storages
