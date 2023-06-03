@@ -92,7 +92,7 @@ pub const World = struct {
             return;
         }
 
-        //  TODO: Create new storage if one doesn't exist and add the component to it
+        // Create new storage if one doesn't exist and add the component to it
         try self.initErasedStorage(COMPONENT_TYPE, component, entity);
     }
 
