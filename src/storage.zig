@@ -35,14 +35,6 @@ pub fn ComponentStorage(comptime ComponentType: type) type {
 pub const ErasedComponentStorage = struct {
     const Self = @This();
 
-    // FIXME: Might not actually need to store the hash here
-    //
-    /// The hash for the type of the components stored.
-    _hash: u64,
-
-    /// A list of all entities that have this component type.
-    _entities: ArrayListUnmanaged(u64) = .{},
-
     /// A pointer to the underlying ComponentStorage.
     _ptr: *anyopaque,
 
