@@ -94,8 +94,8 @@ pub const App = struct {
     /// Deallocate all memory allocated by the App.
     pub fn deinit(self: *Self) void {
         // Free up the stages
-        for (self._stages.items) |stage| {
-            @constCast(&stage).deinit();
+        for (self._stages.items) |*stage| {
+            stage.deinit();
         }
         self._stages.deinit(self._allocator);
 

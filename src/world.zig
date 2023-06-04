@@ -84,8 +84,8 @@ pub const World = struct {
 
     pub fn deinit(self: *Self) void {
         // Free component storages
-        for (self._component_storages.values()) |erased_storage| {
-            erased_storage._deinit(@constCast(&erased_storage), self._allocator);
+        for (self._component_storages.values()) |*erased_storage| {
+            erased_storage._deinit(erased_storage, self._allocator);
         }
         self._component_storages.deinit(self._allocator);
     }

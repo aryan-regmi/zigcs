@@ -6,6 +6,8 @@ const Context = zigcs.Context;
 const System = zigcs.System;
 const Stage = zigcs.Stage;
 const StageID = zigcs.StageID;
+const Ref = zigcs.Ref;
+const Mut = zigcs.Mut;
 
 test "Can spawn entities with components" {
     const ALLOC = testing.allocator;
@@ -76,12 +78,16 @@ test "Can query for components" {
         fn querySystem(ctx: *Context) !void {
             std.debug.print("Query System\n", .{});
 
-            var locations_query = try ctx.query(null, &[_]type{Location});
-            var locations = try locations_query.build();
+            // var locations = try ctx.query(null, &[_]type{Location});
+            // defer locations.deinit();
+            //
+            // var players = try ctx.query(null, &[_]type{ Location, Name });
+            // defer players.deinit();
+
+            var locations = ctx.query(.{Ref(Location)});
             _ = locations;
 
-            var players_query = try ctx.query(null, &[_]type{ Location, Name });
-            var players = try players_query.build();
+            var players = ctx.query(.{ Mut(Location), Ref(Name) });
             _ = players;
         }
 

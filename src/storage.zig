@@ -27,6 +27,35 @@ pub fn ComponentStorage(comptime ComponentType: type) type {
         pub fn deinit(self: *Self, allocator: Allocator) void {
             self._storage.deinit(allocator);
         }
+
+        /// Kepps track of all entities associated with a type of component.
+        pub const EntityMap = struct {
+            idxs: std.ArrayListUnmanaged(u64),
+            components: std.ArrayListUnmanaged(*ComponentType),
+        };
+
+        /// Get all non-null component values in the storage.
+        pub fn getNonEmptyComponents(self: *Self, allocator: Allocator) ?EntityMap {
+            var components: std.ArrayListUnmanaged(*ComponentType) = .{};
+            var idxs: std.ArrayListUnmanaged(u64) = .{};
+            var num_added: u64 = 0;
+            for (self._storage.items, 0..) |*component, i| {
+                if (component.* != null) {
+                    num_added += 1;
+                    idxs.append(allocator, i) catch @panic("Failure during appending index");
+                    components.append(allocator, &component.*.?) catch @panic("Failure during appending component");
+                }
+            }
+
+            if (num_added == 0) {
+                return null;
+            }
+
+            return EntityMap{
+                .idxs = idxs,
+                .components = components,
+            };
+        }
     };
 }
 

@@ -10,4 +10,5 @@ pub const StageID = app.StageID;
 pub const System = app.System;
 pub const Entity = storage.Entity;
 pub const Context = context.Context;
-pub const EntityBuilder = context.EntityBuilder;
+pub const Ref = context.Ref;
+pub const Mut = context.Mut;
