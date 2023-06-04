@@ -21,30 +21,20 @@ pub const World = struct {
     /// Map of component types and storages.
     _component_storages: std.StringArrayHashMapUnmanaged(ErasedComponentStorage) = .{},
 
-    /// Keeps track of the component types associated w/ an entity. (Alternative to a bitmap)
-    /// A map of entity ids to a list of StorageInfo.
-    _entity_map: std.AutoArrayHashMapUnmanaged(u64, std.ArrayListUnmanaged(StorageInfo)) = .{},
-
-    const StorageInfo = struct {
-        type_name: []const u8,
-        index: u64,
-    };
-
     /// Spawns a new entity in the ECS.
     pub fn spawnEntity(self: *Self) !Entity {
         // Create new entity
         var entity = Entity{ .id = self._num_entites };
         self._num_entites += 1;
 
-        // Add entry to the entity map.
-        try self._entity_map.put(self._allocator, entity.id, .{});
-
         return entity;
     }
 
+    /// Create a new erased storage/list for a component of `ComponentType`.
     fn initErasedStorage(self: *Self, comptime ComponentType: type, component: ComponentType, entity: Entity) !void {
-        var new_storage: std.ArrayListUnmanaged(ComponentType) = .{};
-        try new_storage.append(self._allocator, component);
+        var new_storage = try std.ArrayListUnmanaged(?ComponentType).initCapacity(self._allocator, self._num_entites);
+        try new_storage.appendNTimes(self._allocator, null, self._num_entites);
+        new_storage.items[entity.id] = component;
 
         // Add new storage to the component map
         var new_ptr = try self._allocator.create(ComponentStorage(ComponentType));
@@ -61,13 +51,6 @@ pub const World = struct {
             })._deinit,
         };
 
-        // Add storage info to entity map!
-        var entity_map_entry: *std.ArrayListUnmanaged(StorageInfo) = self._entity_map.getPtr(entity.id).?;
-        try entity_map_entry.append(self._allocator, StorageInfo{
-            .type_name = @typeName(ComponentType),
-            .index = 0, // If a new storage is being created, then the passed entity will be at the first index of the storage
-        });
-
         try self._component_storages.put(self._allocator, @typeName(ComponentType), erased_storage);
     }
 
@@ -80,14 +63,12 @@ pub const World = struct {
         if (self._component_storages.contains(TYPE_NAME)) {
             var erased_component_storage: *ErasedComponentStorage = self._component_storages.getPtr(TYPE_NAME).?;
             var component_storage = erased_component_storage.asComponentStorage(COMPONENT_TYPE);
-            try component_storage._storage.append(self._allocator, component);
-
-            // Add storage info to entity map!
-            var entity_map_entry: *std.ArrayListUnmanaged(StorageInfo) = self._entity_map.getPtr(entity.id).?;
-            try entity_map_entry.append(self._allocator, StorageInfo{
-                .type_name = TYPE_NAME,
-                .index = component_storage._storage.items.len,
-            });
+            // For each erased storage, add a new,empty entry
+            while (self._num_entites > component_storage._storage.items.len) {
+                // TODO: use appendNTimes instead? (where N is _num_entites - component_storage len)
+                try component_storage._storage.append(self._allocator, null);
+            }
+            component_storage._storage.items[entity.id] = component;
 
             return;
         }
@@ -102,12 +83,6 @@ pub const World = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        // Free entity map
-        for (self._entity_map.values()) |entry| {
-            @constCast(&entry).deinit(self._allocator);
-        }
-        self._entity_map.deinit(self._allocator);
-
         // Free component storages
         for (self._component_storages.values()) |erased_storage| {
             erased_storage._deinit(@constCast(&erased_storage), self._allocator);

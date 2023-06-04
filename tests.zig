@@ -70,11 +70,11 @@ test "Can query for components" {
             var e1 = try ctx.spawn();
             try e1.addComponent(ctx, Location{});
 
-            std.log.warn("Setup System", .{});
+            std.debug.print("=>\nSetup System\n", .{});
         }
 
         fn querySystem(ctx: *Context) !void {
-            std.log.warn("Query System", .{});
+            std.debug.print("Query System\n", .{});
 
             var locations_query = try ctx.query(null, &[_]type{Location});
             var locations = try locations_query.build();
@@ -93,7 +93,7 @@ test "Can query for components" {
                 _ = i + 1;
             }
 
-            std.log.warn("Freestanding System", .{});
+            std.debug.print("Freestanding System\n", .{});
         }
     };
 

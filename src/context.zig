@@ -25,32 +25,28 @@ pub const Context = struct {
         return entity;
     }
 
-    // FIXME:: Implement this!
-    pub fn query(self: *Self, comptime mutable_types: ?[]const type, comptime immutable_types: ?[]const type) !QueryBuilder {
-        _ = mutable_types;
+    // FIXME: Implement this!
+    pub fn query(self: *Self, comptime mutable_types: ?[]const type, comptime immutable_types: ?[]const type) !Query {
         _ = self;
+        _ = mutable_types;
 
-        // NOTE: Just debugging for now!
-        //
-        // TODO: Get names of the types and find the relavent info in the entity map?
+        // TODO: Get names of the types and find the relevant info in the entity map
+        std.debug.print("\tQuery Types: \n", .{});
         inline for (immutable_types.?) |immutable_type| {
-            std.debug.print("{}\n", .{immutable_type});
+            std.debug.print("\t\t{}\n", .{immutable_type});
         }
 
-        return QueryBuilder{};
-    }
-};
-
-pub const QueryBuilder = struct {
-    // FIXME:: Implement this!
-    pub fn build(self: *QueryBuilder) !Query {
-        _ = self;
         return Query{};
     }
 };
 
-pub const Query = struct {
+/// Represents mutable components in queries.
+pub const Mut = struct {};
 
+/// Represents immutable components in queries.
+pub const Ref = struct {};
+
+pub const Query = struct {
     // TODO: Add iterator
     // TODO: Add getComponent()
 };

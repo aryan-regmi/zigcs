@@ -3,8 +3,6 @@ const Allocator = std.mem.Allocator;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
 const Context = @import("context.zig").Context;
 
-// TODO: Store type-erased storage instead of erasing (and allocating) each individual component
-
 pub const Entity = struct {
     const Self = @This();
 
@@ -24,7 +22,7 @@ pub fn ComponentStorage(comptime ComponentType: type) type {
     return struct {
         const Self = @This();
 
-        _storage: std.ArrayListUnmanaged(ComponentType),
+        _storage: std.ArrayListUnmanaged(?ComponentType),
 
         pub fn deinit(self: *Self, allocator: Allocator) void {
             self._storage.deinit(allocator);
