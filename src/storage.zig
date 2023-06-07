@@ -28,22 +28,17 @@ pub fn ComponentStorage(comptime ComponentType: type) type {
             self._storage.deinit(allocator);
         }
 
-        /// Kepps track of all entities associated with a type of component.
-        pub const EntityMap = struct {
-            idxs: std.ArrayListUnmanaged(u64),
-            components: std.ArrayListUnmanaged(*ComponentType),
-        };
+        /// Keeps track of all entities associated with a type of component.
+        pub const EntityMap = std.AutoArrayHashMapUnmanaged(u64, *ComponentType);
 
         /// Get all non-null component values in the storage.
         pub fn getNonEmptyComponents(self: *Self, allocator: Allocator) ?EntityMap {
-            var components: std.ArrayListUnmanaged(*ComponentType) = .{};
-            var idxs: std.ArrayListUnmanaged(u64) = .{};
+            var entity_map: EntityMap = .{};
             var num_added: u64 = 0;
             for (self._storage.items, 0..) |*component, i| {
                 if (component.* != null) {
                     num_added += 1;
-                    idxs.append(allocator, i) catch @panic("Failure during appending index");
-                    components.append(allocator, &component.*.?) catch @panic("Failure during appending component");
+                    entity_map.put(allocator, i, &component.*.?) catch @panic("Unable to insert entity data into map");
                 }
             }
 
@@ -51,10 +46,7 @@ pub fn ComponentStorage(comptime ComponentType: type) type {
                 return null;
             }
 
-            return EntityMap{
-                .idxs = idxs,
-                .components = components,
-            };
+            return entity_map;
         }
     };
 }
@@ -72,5 +64,18 @@ pub const ErasedComponentStorage = struct {
     pub fn asComponentStorage(self: *Self, comptime ComponentType: type) *ComponentStorage(ComponentType) {
         var aligned = @alignCast(@alignOf(*ComponentStorage(ComponentType)), self._ptr);
         return @ptrCast(*ComponentStorage(ComponentType), aligned);
+    }
+};
+
+pub const ErasedComponent = struct {
+    const Self = @This();
+
+    _type_name: []const u8,
+
+    _ptr: *anyopaque,
+
+    pub fn asComponentType(self: *Self, comptime ComponentType: type) *ComponentType {
+        var aligned = @alignCast(@alignOf(*ComponentType), self._ptr);
+        return @ptrCast(*ComponentType, aligned);
     }
 };
