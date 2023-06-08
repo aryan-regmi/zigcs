@@ -122,6 +122,11 @@ pub fn Query(comptime QueryTypes: anytype) type {
             };
         }
 
+        // FIXME: Implment function that returns a single entity, if and only if the iterator has only one item.
+        pub fn single(self: *Self) !void {
+            _ = self;
+        }
+
         pub fn deinit(self: *Self) void {
             for (self._associated_component_map.values()) |*value| {
                 value.deinit(self._allocator);

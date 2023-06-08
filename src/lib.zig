@@ -14,5 +14,7 @@ pub const Context = context.Context;
 pub const Ref = query.Ref;
 pub const Mut = query.Mut;
 
+// TODO: Add scheduler w/ thread pool
+
 // NOTE: Check for data races
 // NOTE: assigning lists/maps will create new ones, so try to take reference to already existing ones where possible

@@ -110,7 +110,7 @@ pub const App = struct {
         try self._systems.append(self._allocator, system);
     }
 
-    pub fn addStage(self: *Self, id: StageID, systems: []System) !void {
+    pub fn addStage(self: *Self, id: StageID, systems: []const System) !void {
         var stage = Stage.init(self._allocator, id);
         for (systems) |system| {
             try stage.addSystem(system);

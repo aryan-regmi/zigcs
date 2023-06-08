@@ -47,10 +47,8 @@ test "Can spawn entities with components" {
     var app = try App.init(ALLOC);
     defer app.deinit();
 
-    var stage1 = [_]System{TestSystems.system1};
-    var stage2 = [_]System{TestSystems.system2};
-    try app.addStage(StageID{ .Idx = 0 }, &stage1);
-    try app.addStage(StageID{ .Idx = 1 }, &stage2);
+    try app.addStage(StageID{ .Idx = 0 }, &[_]System{TestSystems.system1});
+    try app.addStage(StageID{ .Idx = 1 }, &[_]System{TestSystems.system2});
 
     try app.run();
 }
@@ -116,10 +114,8 @@ test "Can query for components" {
 
     try app.addSystem(TestSystems.freestandingSystem);
 
-    var stage1 = [_]System{TestSystems.setupSystem};
-    var stage2 = [_]System{TestSystems.querySystem};
-    try app.addStage(StageID{ .Idx = 0 }, &stage1);
-    try app.addStage(StageID{ .Idx = 1 }, &stage2);
+    try app.addStage(StageID{ .Idx = 0 }, &[_]System{TestSystems.setupSystem});
+    try app.addStage(StageID{ .Idx = 1 }, &[_]System{TestSystems.querySystem});
 
     std.debug.print("=>\n", .{});
     try app.run();
