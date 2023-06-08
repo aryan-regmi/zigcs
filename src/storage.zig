@@ -8,8 +8,6 @@ pub const Entity = struct {
 
     id: u64,
 
-    // TODO: Add comptime checks to make sure components are structs?
-    //
     /// Add the specified component to this Entity.
     pub fn addComponent(self: *Self, ctx: *Context, comptime component: anytype) !void {
         ctx._world_mutex.lock();

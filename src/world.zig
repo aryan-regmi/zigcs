@@ -5,8 +5,8 @@ const Entity = storage.Entity;
 const ErasedComponentStorage = storage.ErasedComponentStorage;
 const ComponentStorage = storage.ComponentStorage;
 
-// TODO: Remove component logic
-// TODO: Remove entity logic
+// TODO: Add logic to remove component
+// TODO: Add logic to remove entity
 
 pub const World = struct {
     const Self = @This();

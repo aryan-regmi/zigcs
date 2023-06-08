@@ -28,7 +28,6 @@ pub fn Ref(comptime T: type) type {
 }
 
 pub fn Query(comptime QueryTypes: anytype) type {
-    // TODO: Use QueryTypes to check that type requested from getComponent is allowed in this query
     return struct {
         const Self = @This();
 
