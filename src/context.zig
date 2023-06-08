@@ -38,7 +38,7 @@ pub const Context = struct {
         inline for (QueryTypes) |type_| {
             // Make sure QueryTypes are either `Ref` or `Mut`
             comptime {
-                if (!(std.meta.trait.hasField("_zigcs_query_type_marker")(type_) and std.meta.trait.hasField("_val")(type_))) {
+                if (!(std.meta.trait.hasField("_zigcs_query_type_marker")(type_))) {
                     @compileError("Invalid query type: Must pass `Ref(T)` or `Mut(T)`");
                 }
             }

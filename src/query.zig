@@ -12,8 +12,6 @@ pub fn Mut(comptime T: type) type {
         pub const TYPE_NAME = @typeName(T);
         pub const ACCESS_TYPE = AccessType.Mut;
 
-        _val: T,
-
         _zigcs_query_type_marker: bool = true,
     };
 }
@@ -24,8 +22,6 @@ pub fn Ref(comptime T: type) type {
         pub const TYPE = T;
         pub const TYPE_NAME = @typeName(T);
         pub const ACCESS_TYPE = AccessType.Ref;
-
-        _val: T,
 
         _zigcs_query_type_marker: bool = true,
     };
@@ -44,12 +40,45 @@ pub fn Query(comptime QueryTypes: anytype) type {
         /// List of entities with components of all queried types.
         _valid_entities: std.ArrayListUnmanaged(Entity) = .{},
 
-        // FIXME: Implement this!
-        pub fn getComponent(self: *Self, entity: Entity, comptime T: type) QueryRes(T) {
-            _ = entity;
-            _ = self;
+        const GetComponentError = error{ NoEntityHasSpecifiedComponentType, RefTypeAccessedMutably };
 
-            return QueryRes(T){ .TODO = {} };
+        /// Get immutable pointer to the component of the specified entity.
+        pub fn getComponent(self: *Self, entity: Entity, comptime T: type) GetComponentError!*const T {
+            // Grab the list from the _associated_component_map for the given entity
+            var components: *std.ArrayListUnmanaged(ErasedComponent) = self._associated_component_map.getPtr(entity.id) orelse {
+                return GetComponentError.NoEntityHasSpecifiedComponentType;
+            };
+
+            // Convert the ErasedComponent to the specified type if the typename matches
+            for (components.items) |*erased_component| {
+                if (std.mem.eql(u8, @typeName(T), erased_component._type_name)) {
+                    return erased_component.asComponentType(T);
+                }
+            }
+
+            return GetComponentError.NoEntityHasSpecifiedComponentType;
+        }
+
+        // FIXME: Have to worry about data races if pointer get updated?
+        //
+        /// Get mutable pointer to the component of the specified entity.
+        pub fn getComponentMut(self: *Self, entity: Entity, comptime T: type) GetComponentError!*T {
+            // Grab the list from the _associated_component_map for the given entity
+            var components: *std.ArrayListUnmanaged(ErasedComponent) = self._associated_component_map.getPtr(entity.id) orelse {
+                return GetComponentError.NoEntityHasSpecifiedComponentType;
+            };
+
+            // Convert the ErasedComponent to the specified type if the typename matches
+            for (components.items) |*erased_component| {
+                if (std.mem.eql(u8, @typeName(T), erased_component._type_name)) {
+                    if (erased_component._access != AccessType.Mut) {
+                        return GetComponentError.RefTypeAccessedMutably;
+                    }
+                    return erased_component.asComponentType(T);
+                }
+            }
+
+            return GetComponentError.NoEntityHasSpecifiedComponentType;
         }
 
         /// Returns an iterator over the entities that have the queried components.
@@ -100,16 +129,6 @@ pub fn Query(comptime QueryTypes: anytype) type {
             }
             self._associated_component_map.deinit(self._allocator);
         }
-    };
-}
-
-pub fn QueryRes(comptime T: type) type {
-    return union(enum) {
-        Ref: Ref(T),
-        Mut: Mut(T),
-
-        // FIXME: REMOVE THIS
-        TODO,
     };
 }
 

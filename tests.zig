@@ -74,10 +74,6 @@ test "Can query for components" {
             try player1.addComponent(ctx, Name{ .first = "Aryan", .last = "Regmi" });
             try player1.addComponent(ctx, Location{ .x = 90, .y = 10 });
 
-            var player2 = try ctx.spawn();
-            try player2.addComponent(ctx, Name{ .first = "Another", .last = "Person" });
-            try player2.addComponent(ctx, Location{ .x = 30, .y = 50 });
-
             var npc = try ctx.spawn();
             try npc.addComponent(ctx, Location{});
 
@@ -100,14 +96,17 @@ test "Can query for components" {
             defer players.deinit();
 
             while (players.next()) |entity| {
-                var player_pos = players_query.getComponent(entity, Location);
-                _ = player_pos;
-                var player_name = players_query.getComponent(entity, Name);
-                _ = player_name;
-            }
+                var player_pos = try players_query.getComponentMut(entity, Location);
+                try testing.expectEqual(Location{ .x = 90, .y = 10 }, player_pos.*);
+                player_pos.x = 10;
 
-            // NOTE: This will cause a compile time error!
-            // var invalid = ctx.query(.{ Location, Name });
+                // Update mutable value
+                var updated_pos = try players_query.getComponent(entity, Location);
+                try testing.expectEqual(Location{ .x = 10, .y = 10 }, updated_pos.*);
+
+                var player_name = try players_query.getComponent(entity, Name);
+                try testing.expectEqual(Name{ .first = "Aryan", .last = "Regmi" }, player_name.*);
+            }
         }
 
         // NOTE: This is just to make sure stages and systems run independent of each other.

@@ -79,7 +79,7 @@ pub const ErasedComponent = struct {
     _ptr: *anyopaque,
 
     pub fn asComponentType(self: *Self, comptime ComponentType: type) *ComponentType {
-        var aligned = @alignCast(@alignOf(*ComponentType), self._ptr);
+        var aligned = @alignCast(@alignOf(ComponentType), self._ptr);
         return @ptrCast(*ComponentType, aligned);
     }
 };
