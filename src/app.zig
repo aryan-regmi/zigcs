@@ -57,7 +57,7 @@ pub const Stage = struct {
     }
 
     fn sort(stages: []Self) []Self {
-        std.sort.sort(Self, stages, {}, cmpOrder);
+        std.sort.insertion(Self, stages, {}, cmpOrder);
         return stages;
     }
 };
