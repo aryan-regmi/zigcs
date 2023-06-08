@@ -67,10 +67,14 @@ pub const ErasedComponentStorage = struct {
     }
 };
 
+pub const AccessType = enum { Ref, Mut };
+
 pub const ErasedComponent = struct {
     const Self = @This();
 
     _type_name: []const u8,
+
+    _access: AccessType,
 
     _ptr: *anyopaque,
 

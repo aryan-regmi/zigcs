@@ -63,6 +63,11 @@ test "Can query for components" {
         last: []const u8,
     };
 
+    const Velocity = struct {
+        x: f32 = 0,
+        y: f32 = 0,
+    };
+
     const TestSystems = struct {
         fn setupSystem(ctx: *Context) !void {
             var player1 = try ctx.spawn();
@@ -76,18 +81,24 @@ test "Can query for components" {
             var npc = try ctx.spawn();
             try npc.addComponent(ctx, Location{});
 
+            var unused = try ctx.spawn();
+            try unused.addComponent(ctx, Velocity{});
+
             std.debug.print("=>\nSetup System\n", .{});
         }
 
         fn querySystem(ctx: *Context) !void {
             std.debug.print("Query System\n", .{});
 
-            var players_query = try ctx.query(.{
+            var players_query = ctx.query(.{
                 Mut(Location),
                 Ref(Name),
-            });
+            }).?;
             defer players_query.deinit();
-            var players = players_query.iterator();
+
+            var players = players_query.iterator().?;
+            defer players.deinit();
+
             while (players.next()) |entity| {
                 var player_pos = players_query.getComponent(entity, Location);
                 _ = player_pos;
