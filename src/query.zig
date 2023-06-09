@@ -40,6 +40,7 @@ pub fn Query(comptime QueryTypes: anytype) type {
         _valid_entities: std.ArrayListUnmanaged(Entity) = .{},
 
         const GetComponentError = error{ NoEntityHasSpecifiedComponentType, RefTypeAccessedMutably };
+        const SingleQueryError = error{ NoEntitiesReturnedByQuery, MoreThanOneEntityReturnedByQuery };
 
         /// Get immutable pointer to the component of the specified entity.
         pub fn getComponent(self: *Self, entity: Entity, comptime T: type) GetComponentError!*const T {
@@ -122,9 +123,17 @@ pub fn Query(comptime QueryTypes: anytype) type {
             };
         }
 
-        // FIXME: Implment function that returns a single entity, if and only if the iterator has only one item.
-        pub fn single(self: *Self) !void {
-            _ = self;
+        // Returns a single entity, if and only if the iterator has only one item.
+        pub fn single(self: *Self) SingleQueryError!Entity {
+            var iter = self.iterator();
+
+            if (iter._num_entities < 1) {
+                return SingleQueryError.NoEntitiesReturnedByQuery;
+            } else if (iter._num_entities > 1) {
+                return SingleQueryError.MoreThanOneEntityReturnedByQuery;
+            } else {
+                return iter.next().?;
+            }
         }
 
         pub fn deinit(self: *Self) void {

@@ -68,7 +68,7 @@ test "Can query for components" {
 
             var npc2 = try ctx.spawn();
             try npc2.addComponent(ctx, Velocity{});
-            try npc2.addComponent(ctx, Location{ .x = 1, .y = 2 });
+            try npc2.addComponent(ctx, Location{});
 
             std.debug.print("Setup System\n", .{});
         }
@@ -76,29 +76,44 @@ test "Can query for components" {
         fn querySystem(ctx: *Context) !void {
             std.debug.print("Query System\n", .{});
 
-            var players_query = ctx.query(.{
-                Mut(Location),
-                Ref(Name),
-            }).?;
-            defer players_query.deinit();
+            // Query players
+            {
+                var players_query = ctx.query(.{
+                    Mut(Location),
+                    Ref(Name),
+                }).?;
+                defer players_query.deinit();
 
-            // TODO: Replace with: var player: Entity = try players_query.single();
-            var players = players_query.iterator();
-
-            while (players.next()) |entity| {
-                var player_pos = try players_query.getComponentMut(entity, Location);
+                var player = try players_query.single();
+                var player_pos = try players_query.getComponentMut(player, Location);
                 try testing.expectEqual(Location{ .x = 90, .y = 10 }, player_pos.*);
                 player_pos.x = 10;
 
-                // Update mutable value
-                var updated_pos = try players_query.getComponent(entity, Location);
+                // Update mutable value (Location)
+                var updated_pos = try players_query.getComponent(player, Location);
                 try testing.expectEqual(Location{ .x = 10, .y = 10 }, updated_pos.*);
 
-                var player_name = try players_query.getComponent(entity, Name);
+                var player_name = try players_query.getComponent(player, Name);
                 try testing.expectEqual(Name{ .first = "Aryan", .last = "Regmi" }, player_name.*);
             }
 
-            // TODO: Add while loop for npcs, replacing the players loop with a simple call to Query.single()
+            // Query npcs
+            {
+                var npcs_query = ctx.query(.{
+                    Ref(Location),
+                    Ref(Velocity),
+                }).?;
+                defer npcs_query.deinit();
+
+                var npcs = npcs_query.iterator();
+                while (npcs.next()) |entity| {
+                    var npc_pos = try npcs_query.getComponent(entity, Location);
+                    try testing.expectEqual(Location{}, npc_pos.*);
+
+                    var npc_vel = try npcs_query.getComponent(entity, Velocity);
+                    try testing.expectEqual(Velocity{}, npc_vel.*);
+                }
+            }
         }
 
         // NOTE: This is just to make sure stages and systems run independent of each other.
