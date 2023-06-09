@@ -81,7 +81,7 @@ pub fn Query(comptime QueryTypes: anytype) type {
         }
 
         /// Returns an iterator over the entities that have the queried components.
-        pub fn iterator(self: *Self) ?QueryIter {
+        pub fn iterator(self: *Self) QueryIter {
             // Get hash of each QueryType's names and combine it
             var requested_types_hash: ?u64 = null;
             inline for (QueryTypes) |type_| {
@@ -109,16 +109,16 @@ pub fn Query(comptime QueryTypes: anytype) type {
                 }
             }
 
-            // Return null if there are no entities that have all the requested types
-            var num_valid_entities = self._valid_entities.items.len;
-            if (num_valid_entities == 0) {
-                return null;
-            }
+            // // Return null if there are no entities that have all the requested types
+            // var num_valid_entities = self._valid_entities.items.len;
+            // if (num_valid_entities == 0) {
+            //     return null;
+            // }
 
             return QueryIter{
                 ._allocator = self._allocator,
-                ._num_entities = num_valid_entities,
-                ._valid_entities = self._valid_entities,
+                ._num_entities = self._valid_entities.items.len,
+                ._valid_entities = self._valid_entities.items,
             };
         }
 
@@ -132,6 +132,8 @@ pub fn Query(comptime QueryTypes: anytype) type {
                 value.deinit(self._allocator);
             }
             self._associated_component_map.deinit(self._allocator);
+
+            self._valid_entities.deinit(self._allocator);
         }
     };
 }
@@ -142,13 +144,13 @@ pub const QueryIter = struct {
     _allocator: Allocator,
 
     _num_entities: u64,
-    _valid_entities: std.ArrayListUnmanaged(Entity),
+    _valid_entities: []Entity,
 
     _current_idx: u64 = 0,
 
     pub fn next(self: *QueryIter) ?Entity {
         if (self._current_idx < self._num_entities) {
-            var entity = self._valid_entities.items[self._current_idx];
+            var entity = self._valid_entities[self._current_idx];
 
             self._current_idx += 1;
 
@@ -156,9 +158,5 @@ pub const QueryIter = struct {
         } else {
             return null;
         }
-    }
-
-    pub fn deinit(self: *Self) void {
-        self._valid_entities.deinit(self._allocator);
     }
 };

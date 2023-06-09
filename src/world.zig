@@ -5,9 +5,6 @@ const Entity = storage.Entity;
 const ErasedComponentStorage = storage.ErasedComponentStorage;
 const ComponentStorage = storage.ComponentStorage;
 
-// TODO: Add logic to remove component
-// TODO: Add logic to remove entity
-
 pub const World = struct {
     const Self = @This();
 
@@ -33,20 +30,22 @@ pub const World = struct {
         return entity;
     }
 
+    // FIXME: Add logic to remove entity
+    pub fn removeEntity(self: *Self) !void {
+        _ = self;
+
+        // TODO: Just mark entity to be deleted, and check the marked_for_deletion list before adding or removing components?
+
+        // TODO: Remove entity from _entity_map?
+        //  -> No good way to keep track of component types in the world, so maybe anything that uses the entity map will just check the deleted entites too
+    }
+
     /// Create a new erased storage/list for a component of `ComponentType`.
     fn initErasedStorage(self: *Self, comptime ComponentType: type, component: ComponentType, entity: Entity) !void {
         var new_storage = try std.ArrayListUnmanaged(?ComponentType).initCapacity(self._allocator, self._num_entities);
         try new_storage.appendNTimes(self._allocator, null, self._num_entities);
 
         new_storage.items[entity.id] = component;
-
-        // DEBUG: Check all entries in new_storage
-        // std.debug.print("\n{}\n", .{ComponentType});
-        // std.debug.print("VALUE: {?}\n", .{new_storage.items[entity.id]});
-
-        // for (new_storage.items) |value| {
-        //     std.debug.print("{?}\n", .{value});
-        // }
 
         // Add new storage to the component map
         var new_ptr = try self._allocator.create(ComponentStorage(ComponentType));
@@ -117,6 +116,19 @@ pub const World = struct {
                 try self._entity_map.put(self._allocator, TYPE_NAME, new_associated_list);
             }
         }
+    }
+
+    // FIXME: Add logic to remove component
+    pub fn removeComponentFromEntity(self: *Self, comptime ComponentType: type, entity: Entity) !void {
+        _ = entity;
+        _ = ComponentType;
+        _ = self;
+
+        // TODO: If `entityIsInComponentMap` is false, return an error: ComponentNotInEntity
+
+        // TODO: Else, convert erased storage to concrete list and set entity.id entry to null
+
+        // TODO: Update entity map (remove the component from entity's associated list!)
     }
 
     /// Checks if an entity is already associated with the given type.

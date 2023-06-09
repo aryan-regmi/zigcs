@@ -63,10 +63,12 @@ test "Can query for components" {
             try player1.addComponent(ctx, Location{ .x = 90, .y = 10 });
 
             var npc = try ctx.spawn();
+            try npc.addComponent(ctx, Velocity{});
             try npc.addComponent(ctx, Location{});
 
-            var unused = try ctx.spawn();
-            try unused.addComponent(ctx, Velocity{});
+            var npc2 = try ctx.spawn();
+            try npc2.addComponent(ctx, Velocity{});
+            try npc2.addComponent(ctx, Location{ .x = 1, .y = 2 });
 
             std.debug.print("Setup System\n", .{});
         }
@@ -80,8 +82,8 @@ test "Can query for components" {
             }).?;
             defer players_query.deinit();
 
-            var players = players_query.iterator().?;
-            defer players.deinit();
+            // TODO: Replace with: var player: Entity = try players_query.single();
+            var players = players_query.iterator();
 
             while (players.next()) |entity| {
                 var player_pos = try players_query.getComponentMut(entity, Location);
@@ -95,6 +97,8 @@ test "Can query for components" {
                 var player_name = try players_query.getComponent(entity, Name);
                 try testing.expectEqual(Name{ .first = "Aryan", .last = "Regmi" }, player_name.*);
             }
+
+            // TODO: Add while loop for npcs, replacing the players loop with a simple call to Query.single()
         }
 
         // NOTE: This is just to make sure stages and systems run independent of each other.
@@ -120,3 +124,5 @@ test "Can query for components" {
     std.debug.print("=>\n", .{});
     try app.run();
 }
+
+// TODO: Add tests to check performace limits of ECS: Spawn a bunch of entities and add components and query them.
