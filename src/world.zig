@@ -118,17 +118,28 @@ pub const World = struct {
         }
     }
 
-    // FIXME: Add logic to remove component
-    pub fn removeComponentFromEntity(self: *Self, comptime ComponentType: type, entity: Entity) !void {
-        _ = entity;
-        _ = ComponentType;
-        _ = self;
+    /// Removes a component of `ComponentType` from the given entity, if one exists.
+    pub fn removeComponentFromEntity(self: *Self, comptime ComponentType: type, entity: Entity) error{ComponentNotInEntity}!void {
+        const TYPE_NAME = @typeName(ComponentType);
 
-        // TODO: If `entityIsInComponentMap` is false, return an error: ComponentNotInEntity
+        // If `entityIsInComponentMap` is false, return an error: ComponentNotInEntity
+        if (!self.entityIsInComponentMap(entity, TYPE_NAME)) {
+            return .ComponentNotInEntity;
+        }
 
-        // TODO: Else, convert erased storage to concrete list and set entity.id entry to null
+        // Convert erased storage to concrete list and set entity.id entry to null
+        var erased_storage: *ErasedComponentStorage = self._component_storages.getPtr(TYPE_NAME).?;
+        var component_storage = erased_storage.asComponentStorage(ComponentType);
+        component_storage._storage.items[entity.id] = null;
 
-        // TODO: Update entity map (remove the component from entity's associated list!)
+        // Update entity map (remove the entity from component's associated list!)
+        var associated_entities: *std.ArrayListUnmanaged(u64) = self._entity_map.getPtr(TYPE_NAME).?;
+        for (0..associated_entities.items.len) |i| {
+            if (associated_entities.items[i] == entity.id) {
+                var removed = associated_entities.swapRemove(i);
+                std.debug.assert(removed == entity.id);
+            }
+        }
     }
 
     /// Checks if an entity is already associated with the given type.

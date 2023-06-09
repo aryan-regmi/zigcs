@@ -16,5 +16,7 @@ pub const Mut = query.Mut;
 
 // TODO: Add scheduler w/ thread pool
 
+// TODO: Consolidate all errors into a library error type!
+
 // NOTE: Check for data races
 // NOTE: assigning lists/maps will create new ones, so try to take reference to already existing ones where possible
